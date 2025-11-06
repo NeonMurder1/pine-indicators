@@ -1,0 +1,6 @@
+//@version=5
+indicator("Volume Buoyancy", overlay=false)
+vol = volume
+avg = ta.sma(vol, 20)
+buoyancy = (vol - avg) / avg
+plot(buoyancy, "Buoyancy", color=color.new(color.orange, 0))

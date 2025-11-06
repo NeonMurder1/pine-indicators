@@ -1,0 +1,5 @@
+//@version=5
+indicator("Breakout Probability", overlay=true)
+perc = input.float(1.0, "Percentage Step", step=0.1)
+step = close * (perc / 100)
+line.new(bar_index, high + step, bar_index, low - step, color=color.new(color.blue, 0))

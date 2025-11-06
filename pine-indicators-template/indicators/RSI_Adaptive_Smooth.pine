@@ -1,0 +1,6 @@
+//@version=5
+indicator("RSI Adaptive Smooth", overlay=false)
+length = input.int(14)
+src = input(close)
+rsi_val = ta.rsi(src, length)
+plot(ta.ema(rsi_val, length / 2), "RSI Adaptive", color=color.new(color.green, 0))
