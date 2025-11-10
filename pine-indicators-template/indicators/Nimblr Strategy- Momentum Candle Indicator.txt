@@ -1,0 +1,14 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © tradingconnoisseur
+
+//@version=4
+//@version=4
+study(title="Nimblr Strategy", shorttitle="Nimblr_Strategy", overlay=true)
+candleHeight=high-low
+bodyHeight=open-close
+ratio =((bodyHeight/candleHeight)*100)
+momentum = ((ratio > 50) or (ratio<-50 and ratio<0))
+indecision=ratio<=50 
+tiny=((ratio<15 and ratio >0) or (ratio >-15 and ratio<0))
+plotshape(momentum, style=shape.diamond,location=location.abovebar, color=color.olive,size=size.tiny, title="Momentum",transp=70)
+plotshape(tiny, style=shape.diamond,location=location.abovebar, color=color.teal,size=size.tiny,title="Tiny",transp=70)

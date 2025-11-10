@@ -1,0 +1,60 @@
+//@version=4
+//author = https://www.tradingview.com/u/MattDeLong/
+//TODO: add 2 days total of 4.5% pullback
+//TODO: editable tickers
+
+study('Naked Put Growth v2', overlay=true)
+pullback = input(title='Pullback %', type=input.float, defval=-4.50, step=0.25)
+mysource = input(title='Based on', type=input.source, defval=low)
+myvol = input(title='Minimum Daily Volume', type=input.integer, defval=450000)
+above200sma = close > sma(close, 100)
+bearishCandle = close < open
+goodVolume = volume > myvol
+
+//force indexes to use 3% pullback
+pullback := syminfo.ticker == 'QQQ' or syminfo.ticker == 'SPY' or syminfo.ticker == 'IWM' ? 
+   -3.5 : pullback
+
+growthStock() =>
+    growth = 1
+    growth
+
+slightPullback() =>
+    moveSize = (close[1] - mysource) / close[1] * -100
+    moveSize < pullback
+
+recentHigh(start, length) =>
+    myhigh = start
+    for i = 0 to length by 1
+        myhigh := close[i] > myhigh ? close[i] : myhigh
+        myhigh
+
+diff(k) =>
+    abs(high[k] - low[k])
+
+isSlightPullback = slightPullback()
+//plot((((close[1] - mysource) / close[1]) * -100))
+isGrowthStock = growthStock()
+strikePrice = recentHigh(close, 200) * .75
+strikePrice2 = recentHigh(close, 200) * .5
+strikePrice3 = recentHigh(close, 200) * .2
+
+price1 = recentHigh(close, 200) * .9
+price2 = recentHigh(close, 200) * .75
+p1 = plot(price1)
+p2 = plot(price2)
+fill(p1, p2, color=color.green)
+
+aboveStrike = close > strikePrice
+isLow = low < low[1]
+npSignal = isSlightPullback and isGrowthStock and goodVolume and timeframe.isdaily and 
+   year >= 2016
+//above200sma and close[1]>strikePrice and aboveStrike 
+
+plot(strikePrice, color=color.green, linewidth=3)
+//plot(strikePrice2, color=blue, linewidth=5)
+//plot(strikePrice3, color=red, linewidth=7)
+plotchar(npSignal, char='$', location=location.belowbar, size=size.tiny, color=color.green, offset=0)
+
+// === ALERT === 
+alertcondition(npSignal, title="Options Alert", message="Sell Put or Buy Calls")

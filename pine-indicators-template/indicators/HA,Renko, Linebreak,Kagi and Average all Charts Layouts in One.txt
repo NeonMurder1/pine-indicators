@@ -1,0 +1,32 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © exlux99
+
+//@version=4
+study("Educational Plots",overlay=true)
+
+// Function to securely and simply call `security()` so that it never repaints and never looks ahead.
+f_secureSecurity(_symbol, _res, _src) => security(_symbol, _res, _src[1], lookahead = barmerge.lookahead_on)
+
+source=input(close)
+ha = f_secureSecurity(heikinashi(syminfo.tickerid), timeframe.period, source)
+
+renko_t = renko(syminfo.tickerid, "ATR", 10)
+renko = f_secureSecurity(renko_t, timeframe.period, source)
+
+lb = linebreak(syminfo.tickerid, 3)
+linebreak= f_secureSecurity(lb, timeframe.period, source)
+
+kg= kagi(syminfo.tickerid, 1)
+kagi = f_secureSecurity(kg, timeframe.period, source)
+
+plot(close, title='Close', color=color.blue, linewidth=1, style=plot.style_line)
+plot(ha, title='Heikin Ashi', color=color.white, linewidth=1, style=plot.style_line)
+plot(renko, title='Renko', color=color.green, linewidth=1, style=plot.style_line)
+plot(linebreak, title='Linebreak', color=color.maroon, linewidth=1, style=plot.style_line)
+plot(kagi, title='Kagi', color=color.purple, linewidth=1, style=plot.style_line)
+
+average_close = (close+ha+renko+linebreak+kagi)/5
+
+plot(average_close, title='AVERAGE', color=color.white, linewidth=4, style=plot.style_line)
+
+

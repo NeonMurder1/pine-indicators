@@ -1,0 +1,57 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © loxx
+
+//@version=5
+indicator("Larry Williams Large Trade Index (LWTI) [Loxx]", 
+     shorttitle="LWTI [Loxx]", 
+     overlay = false, 
+     timeframe="", 
+     timeframe_gaps = true)
+
+greencolor = #2DD204
+redcolor = #D2042D 
+
+variant(type, src, len) =>
+    sig = 0.0
+    if type == "SMA"
+        sig := ta.sma(src, len) 
+    else if type == "EMA"
+        sig := ta.ema(src, len) 
+    else if type == "WMA"
+        sig := ta.wma(src, len)   
+    else if type == "RMA"
+        sig := ta.rma(src, len)  
+    sig
+    
+per = input.int(8, "Period", group = "Basic Settings")
+smthit = input.bool(false, "Smooth LWPI?", group = "Basic Settings")
+type = input.string("SMA", "Smoothing Type", options = ["EMA", "WMA", "RMA", "SMA"], group = "BasicR Settings")
+smthper = input.int(5, "Smoothing Period", group = "Basic Settings")
+
+colorbars = input.bool(false, "Color bars?", group = "UI Options")
+showsignals = input.bool(false, "Show signals?", group = "UI Options")
+
+ma = ta.sma(close - nz(close[per]), per)
+atr = ta.atr(per)
+out = ma/atr * 50 + 50
+out := smthit ? variant(type, out, smthper) : out
+
+colorout = out > 50 ? greencolor : redcolor
+plot(out, color = colorout, linewidth = 2)
+barcolor(colorbars ? colorout : na)
+
+middle = 50
+
+plot(middle, color = bar_index % 2 ? color.gray : na)
+
+goLong = ta.crossover(out, middle)
+goShort = ta.crossunder(out, middle)
+
+plotshape(goLong and showsignals, title = "Long", color = greencolor, textcolor = greencolor, text = "L", style = shape.triangleup, location = location.bottom, size = size.auto)
+plotshape(goShort and showsignals, title = "Short", color = redcolor, textcolor = redcolor, text = "S", style = shape.triangledown, location = location.top, size = size.auto)
+
+alertcondition(goLong, title="Long", message="Larry Williams Large Trade Index (LWTI) [Loxx]: Long\nSymbol: {{ticker}}\nPrice: {{close}}")
+alertcondition(goShort, title="Short", message="Larry Williams Large Trade Index (LWTI) [Loxx]: Short\nSymbol: {{ticker}}\nPrice: {{close}}")
+
+
+

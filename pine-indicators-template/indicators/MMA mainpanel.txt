@@ -1,0 +1,40 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © eykpunter
+
+//@version=5
+indicator("MMA mainpanel","MMA main",true)
+//short group
+ema3=ta.ema(close,3)
+ema5=ta.ema(close,5)
+ema8=ta.ema(close,8)
+ema10=ta.ema(close,10)
+ema12=ta.ema(close, 12)
+ema15=ta.ema(close,15)
+//long group
+ema30=ta.ema(close,30)
+ema35=ta.ema(close,35)
+ema40=ta.ema(close,40)
+ema45=ta.ema(close,45)
+ema50=ta.ema(close,50)
+ema60=ta.ema(close,60)
+//logic
+ut=ema15>ema30 and ema30>ema60 and ema50>ema50[1]
+dt=ema15<ema30 and ema30<ema60 and ema50<ema50[1]
+nt=not ut and not dt
+//plots
+shortgroup=plot(ema15,"ema15",color=nt?color.new(color.gray,70):color.navy,linewidth=2)
+longgroup= plot(ema30,"ema30",color=nt?color.black:color.fuchsia,linewidth=2)
+//fill
+fill(shortgroup,longgroup,color=ut?color.new(color.aqua, 50):dt?color.new(color.purple,50):na)
+//plots
+plot(ema5,"ema5",color=nt?color.new(color.gray,70):color.blue,linewidth=1)
+plot(ema8,"ema8",color=nt?color.new(color.gray,70):color.blue,linewidth=1)
+plot(ema10,"ema10",color=nt?color.new(color.gray,70):color.blue,linewidth=1)
+plot(ema12,"ema12",color=nt?color.new(color.gray,70):color.blue,linewidth=1)
+
+plot(ema35,"ema35",color=nt?color.new(color.black,70):color.red,linewidth=1)
+plot(ema40,"ema40",color=nt?color.new(color.black,70):color.red,linewidth=1)
+plot(ema45,"ema45",color=nt?color.new(color.black,70):color.red,linewidth=1)
+plot(ema50,"ema50",color=nt?color.new(color.black,70):color.red,linewidth=1)
+plot(ema60,"ema60",color=nt?color.new(color.black,70):color.maroon,linewidth=2)
+plot(ema3,"ema3",color=nt?color.new(color.gray,70):color.aqua,linewidth=2)

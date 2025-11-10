@@ -1,0 +1,148 @@
+// This Pine Script™ code is subject to the terms of the Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) https://creativecommons.org/licenses/by-nc-sa/4.0/
+// © UAlgo
+//@version=6
+indicator('Moving Average Pullback Signals [UAlgo]', shorttitle = 'Moving Average Pullback Signals [UAlgo]', overlay = true, max_lines_count = 500, max_labels_count = 500)
+inputSource = input(close, title = 'Source', group = 'Moving Average Pullback Signals [UAlgo]')
+maMethod = input.string(title = 'Method Multi MA', defval = 'TEMA', options = ['SMA', 'EMA', 'SMMA (RMA)', 'WMA', 'VWMA', 'DEMA', 'TEMA', 'ZLSMA', 'ZLDEMA', 'ZLTEMA', 'McGinley-D', 'HMA'], group = 'Moving Average Pullback Signals [UAlgo]')
+inputSourceMA = input(close, title = 'MA Source', group = 'Moving Average Pullback Signals [UAlgo]')
+maLength = input.int(36, minval = 1, title = 'Length Multi MA', group = 'Moving Average Pullback Signals [UAlgo]')
+trendValidationLength = input.int(10, title = 'Trend Validation Length', minval = 1, group = 'Moving Average Pullback Signals [UAlgo]', tooltip = 'Number of bars needed to validate a trend')
+trendPatternMode = input.string('Trend Continuation', title = 'Trend Pattern Mode', options = ['No Trend in Progress', 'Trend Continuation', 'both'], group = 'Moving Average Pullback Signals [UAlgo]')
+wickLengthValidation = input.int(10, title = 'Length Avg Wick Validation', group = 'Moving Average Pullback Signals [UAlgo]')
+wickValidationFactor = input.float(1, step = 0.1, title = 'Factor Avg Wick Validation', group = 'Moving Average Pullback Signals [UAlgo]')
+isBullishWickUp = false
+isBearishWickUp = false
+isBullishWickDown = false
+isBearishWickDown = false
+bodyHigh = math.max(close, open)
+bodyLow = math.min(close, open)
+bodySize = bodyHigh - bodyLow
+upperWick = high - bodyHigh
+isBullishBody = open < close
+isBearishBody = open > close
+highWick = high - bodyHigh
+lowWick = bodyLow - low
+avgHighWick = ta.sma(highWick, wickLengthValidation)
+avgLowWick = ta.sma(lowWick, wickLengthValidation)
+
+calculateDEMA(float src, simple int length) =>
+    firstEMA = ta.ema(src, length)
+    secondEMA = ta.ema(firstEMA, length)
+    doubleEMA = 2 * firstEMA - secondEMA
+    doubleEMA
+
+calculateTEMA(float src, simple int len) =>
+    firstEMA = ta.ema(src, len)
+    secondEMA = ta.ema(firstEMA, len)
+    thirdEMA = ta.ema(secondEMA, len)
+    tripleEMA = 3 * (firstEMA - secondEMA) + thirdEMA
+    tripleEMA
+
+calculateZeroLagSMA(float src, simple int len) =>
+    linReg = ta.linreg(src, len, 0)
+    secondLinReg = ta.linreg(linReg, len, 0)
+    diff = linReg - secondLinReg
+    zeroLagSMA = linReg + diff
+    zeroLagSMA
+
+calculateZeroLagDEMA(float src, simple int len) =>
+    firstEMA = ta.ema(src, len)
+    secondEMA = ta.ema(firstEMA, len)
+    dema1 = 2 * firstEMA - secondEMA
+    firstZeroLagDEMA = ta.ema(dema1, len)
+    secondZeroLagDEMA = ta.ema(firstZeroLagDEMA, len)
+    zeroLagDEMA = 2 * firstZeroLagDEMA - secondZeroLagDEMA
+    zeroLagDEMA
+
+calculateZeroLagTEMA(float src, simple int len) =>
+    firstEMA = ta.ema(src, len)
+    secondEMA = ta.ema(firstEMA, len)
+    thirdEMA = ta.ema(secondEMA, len)
+    tema1 = 3 * (firstEMA - secondEMA) + thirdEMA
+    firstTEMA = ta.ema(tema1, len)
+    secondTEMA = ta.ema(firstTEMA, len)
+    thirdTEMA = ta.ema(secondTEMA, len)
+    zeroLagTEMA = 3 * (firstTEMA - secondTEMA) + thirdTEMA
+    zeroLagTEMA
+
+calculateMcGinley(float src, simple int len) =>
+    mcginley = 0.0
+    tempEMA = ta.ema(src, len)
+    mcginley := na(mcginley[1]) ? tempEMA : mcginley[1] + (src - mcginley[1]) / (len * math.pow(src / mcginley[1], 4))
+    mcginley
+
+selectMA(float source, simple int length, string type) =>
+    switch type
+        'SMA' => ta.sma(source, length)
+        'EMA' => ta.ema(source, length)
+        'SMMA (RMA)' => ta.rma(source, length)
+        'WMA' => ta.wma(source, length)
+        'VWMA' => ta.vwma(source, length)
+        'DEMA' => calculateDEMA(source, length)
+        'TEMA' => calculateTEMA(source, length)
+        'ZLSMA' => calculateZeroLagSMA(source, length)
+        'ZLDEMA' => calculateZeroLagDEMA(source, length)
+        'ZLTEMA' => calculateZeroLagTEMA(source, length)
+        'McGinley-D' => calculateMcGinley(source, length)
+        'HMA' => ta.hma(source, length)
+
+selectedMA = selectMA(inputSourceMA, maLength, maMethod)
+var upTrendCounter = 0
+var downTrendCounter = 0
+upTrendCounter := inputSource > selectedMA ? upTrendCounter + 1 : 0
+downTrendCounter := inputSource < selectedMA ? downTrendCounter + 1 : 0
+isUpTrendInProgress = inputSource > selectedMA and upTrendCounter >= trendValidationLength
+isDownTrendInProgress = inputSource < selectedMA and downTrendCounter >= trendValidationLength
+
+detectWickPattern(src, isCrossUp, factor) =>
+    wickCrossDetected = false
+    if isCrossUp
+        wickCrossDetected := bodyHigh < src and src < high and highWick > avgHighWick * factor
+        wickCrossDetected
+    else
+        wickCrossDetected := low < src and src < bodyLow and lowWick > avgLowWick * factor
+        wickCrossDetected
+    wickCrossDetected
+
+isBullishWickUp := isUpTrendInProgress and detectWickPattern(selectedMA, false, wickValidationFactor)
+isBearishWickDown := isDownTrendInProgress and detectWickPattern(selectedMA, true, wickValidationFactor)
+isBullishWickDown := not isDownTrendInProgress and not isUpTrendInProgress and detectWickPattern(selectedMA, false, wickValidationFactor)
+isBearishWickUp := not isDownTrendInProgress and not isUpTrendInProgress and detectWickPattern(selectedMA, true, wickValidationFactor)
+
+buyCondition = trendPatternMode == 'Trend Continuation' ? isBullishWickUp : trendPatternMode == 'both' ? isBullishWickUp or isBullishWickDown : isBullishWickDown
+sellCondition = trendPatternMode == 'Trend Continuation' ? isBearishWickDown : trendPatternMode == 'both' ? isBearishWickUp or isBearishWickDown : isBearishWickUp
+
+alertcondition(buyCondition, title = 'Long', message = 'Buy Retest: Long\nSymbol: {{ticker}}\nPrice: {{close}}')
+alertcondition(sellCondition, title = 'Short', message = 'Sell Retest: Short\nSymbol: {{ticker}}\nPrice: {{close}}')
+
+
+gradientNormalized(value, maxValue, minValue, colorArray) =>
+
+    normalizedValue = (value - minValue) / (maxValue - minValue)
+
+    idx = math.round(normalizedValue * (array.size(colorArray) - 1))
+
+    idx := math.max(0, math.min(idx, array.size(colorArray) - 1))
+
+    array.get(colorArray, idx)
+var init_colors = array.from(#13ff00, #ccff33, #fcf300, #30c5d2, #003be9, #440f65, #8711c1, #a111c1, #f90cd9, #f90c24)
+
+applyGradientToMA(maSeries, colorArray) =>
+    maMin = ta.lowest(maSeries, 20)
+    maMax = ta.highest(maSeries, 20)
+    normalizedColor = gradientNormalized(maSeries, maMin, maMax, colorArray)
+    normalizedColor
+
+upper = selectedMA > hl2 ? 1 : 0
+priceh = plot(hl2, display = display.none)
+selectedMAPlot = plot(selectedMA, title = 'Moving Average', color = applyGradientToMA(selectedMA, init_colors), linewidth = 2)
+fill(selectedMAPlot, priceh, bool(upper) ? selectedMA : hl2, bool(upper) ? hl2 : selectedMA, color.new(applyGradientToMA(selectedMA, init_colors),99))
+
+if isBullishWickDown and trendPatternMode != 'Trend Continuation'
+    label.new(x = bar_index, y = low - ta.atr(30) * 0.2, xloc = xloc.bar_index, text = 'R', style = label.style_label_up, color = color.green, size = size.small, textcolor = color.white, textalign = text.align_center)
+else if isBullishWickUp and trendPatternMode != 'No Trend in Progress'
+    label.new(x = bar_index, y = low - ta.atr(30) * 0.2, xloc = xloc.bar_index, text = 'R', style = label.style_label_up, color = color.green, size = size.small, textcolor = color.white, textalign = text.align_center)
+else if isBearishWickUp and trendPatternMode != 'Trend Continuation'
+    label.new(x = bar_index, y = high + ta.atr(30) * 0.2, xloc = xloc.bar_index, text = 'R', style = label.style_label_down, color = color.red, size = size.small, textcolor = color.white, textalign = text.align_center)
+else if isBearishWickDown and trendPatternMode != 'No Trend in Progress'
+    label.new(x = bar_index, y = high + ta.atr(30) * 0.2, xloc = xloc.bar_index, text = 'R', style = label.style_label_down, color = color.red, size = size.small, textcolor = color.white, textalign = text.align_center)

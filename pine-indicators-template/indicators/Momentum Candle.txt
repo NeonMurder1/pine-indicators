@@ -1,0 +1,88 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Gautam_Dixit
+
+//@version=5
+indicator(title="Momentum Candle")
+//indicator(title="Solid Body Candle",overlay=true)
+Big_Body = '======================================================== === "Solid Body Candle" === ========================================================='
+//----------------------------------------------------------------------------------------------------------------------
+Show_Body_BS = input.bool(defval = true,title='Show Body Signal ',inline="1",group =  Big_Body,display=display.all - display.status_line,tooltip = "This will Hide Candle Signals on Chart")
+//----------------------------------------------------------------------------------------------------------------------
+// BodyRange() returns the current bar's body range, which is
+// the absolute close to open price difference.
+BodyRange() =>
+	math.abs(close - open)
+
+// Compute the 15-bar average of the bar's body range
+avgBody = ta.sma(BodyRange(), 15)
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+Bull_Body = close > open
+Bear_Body = close < open
+
+//Condition of Candle
+Super_BULL = BodyRange() > avgBody * 1.5 and Bull_Body
+Super_BEAR = BodyRange() > avgBody * 1.5 and Bear_Body 
+
+Bull_Above_Avg = BodyRange() > avgBody  and Bull_Body
+Bear_Above_Avg = BodyRange() > avgBody  and Bear_Body
+
+// Figure out what colour to give the body range plot
+Solid_Body = BodyRange() > avgBody * 1.5
+
+Super_Bull_Clr = color.rgb(157, 255, 0)
+Super_Bear_Clr = color.rgb(210, 1, 252)
+Below_AvG_Clr =  color.rgb(88,88,88)
+Above_Avg_Bull_Clr = color.rgb(3, 129, 108)
+Above_Avg_Bear_Clr = color.rgb(243, 63, 63)
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+Solid_Body_Clr =  Super_BULL? Super_Bull_Clr:Super_BEAR ? Super_Bear_Clr:Below_AvG_Clr
+
+Above_AvG_Clr =  Bull_Above_Avg and not  Super_BULL ?Above_Avg_Bull_Clr:
+ Bear_Above_Avg and not  Super_BEAR ? Above_Avg_Bear_Clr:
+ Below_AvG_Clr
+
+//This WIll Define Solid Candle and Above Average Candle & Below Average Candle live Volume Chart
+Body_Clr = Solid_Body ? Solid_Body_Clr:Above_AvG_Clr
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+                 // if You Want to Plot on Chart Don't use Plot Function & Coment it [ This Part]
+//----------------------------------------------------------------------------------------------------------------------
+// Plot the bar's body range with columns like Volume 
+plot(BodyRange(), style=plot.style_columns, color=Body_Clr,
+     title="Solid Candle Color",display=display.all - display.status_line,editable=false)
+
+// Show the average body range as a solid line
+plot(avgBody, color=color.rgb(67, 160, 247), linewidth=2, title="Average Body",display=display.all - display.status_line,editable = false)
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+//This Will Change Color of Candle of a Chart as Per Solid_Body Candle [Strong Body Candle]
+barcolor(Show_Body_BS and Solid_Body ? Solid_Body_Clr:na,editable = false,display=display.all)
+//----------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------------------------------------------
+                 // if You Want to Plot on Chart Don't use Plot Function & UnComent it [ This Part] & Make Overlay True 
+//----------------------------------------------------------------------------------------------------------------------
+// var box  SBB = na
+// //This Will Plot BOX over BodyRange Candle
+// if Super_BULL or Super_BEAR //BOX_avgBody ? Super_BULL  or Super_BEAR  :na
+//     SBB := box.new(
+//      bar_index[1],
+//      high[0],
+//      bar_index+1,
+//      low[0],
+//      border_color = color.aqua,
+//      bgcolor =color.new(color.aqua,80),
+//      border_width = 1,
+//      border_style = line.style_dotted
+//      )
+// box.delete(SBB[2])
+//----------------------------------------------------------------------------------------------------------------------
+ //                       xx Enjoy Big Body Candle xx
+//----------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+

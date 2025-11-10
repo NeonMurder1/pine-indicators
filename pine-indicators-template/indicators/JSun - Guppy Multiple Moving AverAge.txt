@@ -1,0 +1,20 @@
+//@version=4 
+
+// Title
+study(title="SJ-Guppy Multiple Moving AverAge", shorttitle = "SJ-GMMA",  overlay=true) 
+
+// Plot Short Term
+plot(sma(close, 3), color=color.fuchsia, linewidth=1)
+plot(sma(close, 5), color=color.fuchsia, linewidth=1)
+plot(sma(close, 8), color=color.fuchsia, linewidth=1)
+plot(sma(close, 10), color=color.fuchsia, linewidth=1)
+plot(sma(close, 12), color=color.fuchsia, linewidth=1)
+plot(sma(close, 15), color=color.fuchsia, linewidth=1)
+
+// Plot Long Term
+plot(sma(close, 30), color=color.blue, linewidth=1)
+plot(sma(close, 35), color=color.blue, linewidth=1)
+plot(sma(close, 40), color=color.blue, linewidth=1)
+plot(sma(close, 45), color=color.blue, linewidth=1)
+plot(sma(close, 50), color=color.blue, linewidth=1)
+plot(sma(close, 60), color=color.blue, linewidth=1)

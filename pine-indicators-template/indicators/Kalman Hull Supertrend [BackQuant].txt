@@ -1,0 +1,144 @@
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © BackQuant
+
+//@version=5
+indicator(
+ title = "Kalman Hull Supertrend [BackQuant]", 
+ shorttitle = "Kalman Hull ST [BackQuant]",
+ overlay=true, 
+ timeframe = "", 
+ timeframe_gaps = true
+ )
+
+// Define User Inputs
+series float        pricesource          = input.source(close, "Kalman Price Source", group = "Calculation")
+simple float        measurementNoise     = input.float(3.0, title="Measurement Noise", group = "Calculation", tooltip = "Lookback Period/ Calculation Length", step = 1.0)
+simple float        processNoise         = input.float(0.01, title="Process Noise", step = 0.01, group = "Calculation")
+
+simple int          atrPeriod            = input.int(12, "ATR Period", group = "Supertrend", inline = "ST")
+simple float        factor               = input.float(1.7, "Factor", group = "Supertrend", inline = "ST", step = 0.01)
+
+simple bool         showkalman           = input.bool(true, "Show Supertrend on chart?", group = "UI Settings")
+simple bool         paintCandles         = input.bool(true, "Paint candles according to Trend?", group = "UI Settings")
+simple bool         showlongshort        = input.bool(true, "Show Long and Short Signals {𝕃 + 𝕊}", group =  "UI Settings")
+
+color longColor  = input.color(#33ff00, "Long Color", group = "UI Settings", inline = "Col")
+color shortColor = input.color(#ff0000, "Short Color", group = "UI Settings", inline = "Col")
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+// Kalman Price Filter Function
+N = 5
+var float[] stateEstimate = array.new_float(N, na)
+var float[] errorCovariance = array.new_float(N, 100.0)
+f_init(series float pricesource) =>
+    if na(array.get(stateEstimate, 0))
+        for i = 0 to N-1
+            array.set(stateEstimate, i, pricesource)
+            array.set(errorCovariance, i, 1.0)
+
+f_kalman(series float pricesource, float measurementNoise) =>
+    // Prediction Step
+    predictedStateEstimate = array.new_float(N)
+    predictedErrorCovariance = array.new_float(N)
+    for i = 0 to N-1
+        array.set(predictedStateEstimate, i, array.get(stateEstimate, i)) // Simplified prediction
+        array.set(predictedErrorCovariance, i, array.get(errorCovariance, i) + processNoise)
+    
+    kalmanGain = array.new_float(N)
+    for i = 0 to N-1
+        kg = array.get(predictedErrorCovariance, i) / (array.get(predictedErrorCovariance, i) + measurementNoise)
+        array.set(kalmanGain, i, kg)
+        array.set(stateEstimate, i, array.get(predictedStateEstimate, i) + kg * (pricesource - array.get(predictedStateEstimate, i)))
+        array.set(errorCovariance, i, (1 - kg) * array.get(predictedErrorCovariance, i))
+    
+    array.get(stateEstimate, 0)
+
+f_init(pricesource)
+kalmanFilteredPrice = f_kalman(pricesource, measurementNoise)
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+// Hull Moving Average Function with Kalman instead of Weighted Moving Average
+KHMA(_src, _length) =>
+    f_kalman(2 * f_kalman(_src, _length / 2) - f_kalman(_src, _length), math.round(math.sqrt(_length)))
+// Return
+kalmanHMA = KHMA(pricesource, measurementNoise)
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+// Supertrend Function
+supertrend(factor, atrPeriod, src) =>
+    atr = ta.atr(atrPeriod)
+    upperBand = src + factor * atr
+    lowerBand = src - factor * atr
+    prevLowerBand = nz(lowerBand[1])
+    prevUpperBand = nz(upperBand[1])
+
+    lowerBand := lowerBand > prevLowerBand or close[1] < prevLowerBand ? lowerBand : prevLowerBand
+    upperBand := upperBand < prevUpperBand or close[1] > prevUpperBand ? upperBand : prevUpperBand
+    int direction = na
+    float superTrend = na
+    prevSuperTrend = superTrend[1]
+    if na(atr[1])
+        direction := 1
+    else if prevSuperTrend == prevUpperBand
+        direction := close > upperBand ? -1 : 1
+    else
+        direction := close < lowerBand ? 1 : -1
+    superTrend := direction == -1 ? lowerBand : upperBand
+    [superTrend, direction]
+
+// Call Function with Inputs
+[superTrend, direction] = supertrend(factor, atrPeriod, kalmanHMA)
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+// Conditional Trend
+SupertrendLong = ta.crossunder(direction, 0)
+SupertrendShort = ta.crossover(direction, 0)
+var Trend = 0
+if SupertrendLong and not SupertrendShort
+	Trend := 1
+
+if SupertrendShort
+	Trend := -1
+
+// Colouring
+var barColour = #ffffff
+if Trend == 1 
+    barColour := longColor
+if Trend == -1
+    barColour := shortColor
+
+// Plotting
+plot(
+ showkalman ? superTrend : na, 
+ "Kalman Hull ST", 
+ color = color.new(barColour, 40), 
+ linewidth = 4
+ )
+
+barcolor(paintCandles ? barColour : na)
+
+
+// Long and Short Signals (𝕃𝕊)
+plotshape(
+	 showlongshort ? SupertrendLong : na,
+	 offset=0,
+	 title="Long",
+	 text="𝕃",
+	 style=shape.triangleup,
+	 location=location.belowbar,
+	 color=barColour,
+	 textcolor=barColour, 
+     size = size.tiny
+	 )
+plotshape(
+	 showlongshort ? SupertrendShort: na,
+	 offset=0,
+	 title="Short",
+	 text="𝕊",
+	 style=shape.triangledown,
+	 location=location.abovebar,
+	 color=barColour,
+	 textcolor=barColour, 
+     size = size.tiny
+	 )
+
+// Alert Conditions
+alertcondition(SupertrendLong, title="Kalman Hull ST Long", message="Kalman Hull ST Long {{exchange}}:{{ticker}}")
+alertcondition(SupertrendShort, title="Kalman Hull ST Short", message="Kalman Hull ST Short {{exchange}}:{{ticker}}")

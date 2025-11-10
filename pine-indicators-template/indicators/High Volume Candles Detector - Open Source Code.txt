@@ -1,0 +1,62 @@
+// This work is licensed under a Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) https://creativecommons.org/licenses/by-nc-sa/4.0/
+// © Trading_Paradise
+
+
+//@version=5
+indicator(title="High Volume Candles", overlay = true)
+
+// Previously existing inputs
+lengthMA = input(20, group= "Define Volume Inputs", title="Length of MA for Volume")
+lengthHighest = input(14, group= "Define Volume Inputs", title="Lookback Period for Highest Volume")
+multiplier = input(2.0, group= "Define Volume Inputs", title="Volume Multiplier")
+bullishOnly = input(false, group= "Define Volume Inputs", title="Plot Green Candles Only")
+bearishOnly = input(false, group= "Define Volume Inputs", title="Plot Red Candles Only")
+
+// New inputs
+smaSelected = input(false, group = "Filter candles based on a MA", title="Use SMA for Price")
+emaSelected = input(true, group = "Filter candles based on a MA", title="Use EMA for Price")
+lengthPriceMA = input(21, group = "Filter candles based on a MA", title="Length of MA for Price")
+filterFullCandleBelow = input(false, group = "Filter candles based on a MA", title="Filter Full Candle Below MA")
+filterFullCandleAbove = input(false, group = "Filter candles based on a MA", title="Filter Full Candle Above MA")
+
+// Calculate price moving average based on selected MA type
+var float priceMA = na
+if smaSelected
+    priceMA := ta.sma(close, lengthPriceMA)
+else if emaSelected
+    priceMA := ta.ema(close, lengthPriceMA)
+
+smaVolume = ta.sma(volume, lengthMA)
+highVolume = ta.change(volume) > multiplier * smaVolume
+highestVolume = ta.highest(volume, lengthHighest)
+isHighestInPeriod = volume == highestVolume
+isBullish = close > open
+isBearish = open > close
+
+var bool filterBullBear = na
+if bullishOnly
+    filterBullBear := isBullish
+else if bearishOnly
+    filterBullBear := isBearish
+else
+    filterBullBear := true
+
+// Filter for full candle body above/below moving average
+var bool filterFullCandle = na
+if filterFullCandleBelow
+    filterFullCandle := high < priceMA
+else if filterFullCandleAbove
+    filterFullCandle := low > priceMA
+else
+    filterFullCandle := true
+
+highVolumeAndHighestInPeriod = highVolume and isHighestInPeriod and filterBullBear and filterFullCandle
+
+plotshape(series=highVolumeAndHighestInPeriod and isBullish, title="High Volume Green Candle", location=location.belowbar, color=color.green, style=shape.circle, size=size.tiny)
+plotshape(series=highVolumeAndHighestInPeriod and isBearish, title="High Volume Red Candle", location=location.abovebar, color=color.red, style=shape.circle, size=size.tiny)
+
+plot(priceMA, color=color.blue, title="Moving Average")
+
+alertcondition(highVolumeAndHighestInPeriod and isBullish, title="High Volume Green Candle Alert", message="High volume green candle detected!")
+alertcondition(highVolumeAndHighestInPeriod and isBearish, title="High Volume Red Candle Alert", message="High volume red candle detected!")
+

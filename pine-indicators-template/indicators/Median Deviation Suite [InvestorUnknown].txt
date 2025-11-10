@@ -1,0 +1,296 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © InvestorUnknown | TRW: @Andrej S.
+//                                                                                  {||}                   
+//                                                       ,                          {||}          
+//                                                  ,,,,,                           {||}
+//                                                ,,,,,       ,       ,,            {||}       
+//                                    ,         ,,,, ,       ,,     ,,,             {||}       
+//             .                   , ,         ,,,,  ,     ,,,,   .,,               {||}            ╔╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╗
+//             ,,                 ,       ,,   ,,,,,,,  ,  ,      ,                 {||}            ╠╬╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╬╣  
+//             ,,                 ,,   ,  ,,  ,,,,,, ,,,,    , ,                    {||}            ╠╣  /$$$$$$                                           /$$                         ╠╣
+//              .,         ,      ,,,  ,,,,,,,,,,,,,, ,,  ,,  , ,         ,,        {||}            ╠╣ |_  $$_/                                          | $$                         ╠╣
+//                           ,  .  ,, ,,,,,,,,,,,,, ,    ,,, , ,,    ,   ,          {||}            ╠╣   | $$   /$$$$$$$  /$$    /$$ /$$$$$$   /$$$$$$$ /$$$$$$    /$$$$$$   /$$$$$$  ╠╣
+//                   ,,           ,,, ,,,,,,,,,,,,,,,,,,,,,,  ,,,   ,,              {||}            ╠╣   | $$  | $$__  $$|  $$  /$$//$$__  $$ /$$_____/|_  $$_/   /$$__  $$ /$$__  $$ ╠╣
+//               , ,   ,,,     .,,,,,,,,,,,, ,,,  ,,,,,,,,   ,,,    ,,              {||}            ╠╣   | $$  | $$  \ $$ \  $$/$$/| $$$$$$$$|  $$$$$$   | $$    | $$  \ $$| $$  \__/ ╠╣      
+//         .,     , ,,  ,,    ,,, ,,,,,,, ,,  ,,, ,,,,, ,,, ,  ,,   ,,              {||}            ╠╣   | $$  | $$  | $$  \  $$$/ | $$_____/ \____  $$  | $$ /$$| $$  | $$| $$       ╠╣     
+//            ,   ,,,,,  ,    ,,,, ,, , ,,,,,,,,,,,,,,,,,,,,,, ,,  ,,               {||}            ╠╣  /$$$$$$| $$  | $$   \  $/  |  $$$$$$$ /$$$$$$$/  |  $$$$/|  $$$$$$/| $$       ╠╣   
+//               .    //./ /// ,,,,,,,,,,,,,,,. ,,,,,,,,,,,,,,,,,,                  {||}            ╠╣ |______/|__/  |__/    \_/    \_______/|_______/    \___/   \______/ |__/       ╠╣
+//                ,  /         ,., ,,,,,,,,,,, ,,,,,,,   ,,,,,,,                    {||}            ╠╣                                                                                ╠╣
+//            .  ,,,  ,/ ///./   ,,,.,,,,,,,,,,,,,,,      ,, , ,                    {||}            ╠╣                                                                                ╠╣
+//             ,,,,,,  //./ , /    .,,.,,, ,,,,,, ,.     ,,,,,,,                    {||}            ╠╣                                                                                ╠╣
+//              ,,,,   //  *, / / ,,,,,,,,,,,,          ,, ,,,,,                    {||}            ╠╣    /$$   /$$           /$$                                                     ╠╣
+//               ,,  // ////.*/// / ,.,,,,,.,, ,,  ,,,, ,,,,,,                      {||}            ╠╣   | $$  | $$          | $$                                                     ╠╣
+//                   ,  /////    //  , ,,,,,, ,,,, ,,,,,  ,,, / /.                  {||}            ╠╣   | $$  | $$ /$$$$$$$ | $$   /$$ /$$$$$$$   /$$$$$$  /$$  /$$  /$$ /$$$$$$$    ╠╣
+//              ,,   ,         ////// ,,,,,,,,,  ,,,,,,,,/ ///  / //                {||}            ╠╣   | $$  | $$| $$__  $$| $$  /$$/| $$__  $$ /$$__  $$| $$ | $$ | $$| $$__  $$   ╠╣
+//                         ///// .// ,,,,,,  ,, ,,,, ,,, ///*  //*///               {||}            ╠╣   | $$  | $$| $$  \ $$| $$$$$$/ | $$  \ $$| $$  \ $$| $$ | $$ | $$| $$  \ $$   ╠╣
+//                           //  .           ,, .// ,,      ///, ///                {||}            ╠╣   | $$  | $$| $$  | $$| $$_  $$ | $$  | $$| $$  | $$| $$ | $$ | $$| $$  | $$   ╠╣
+//                        //////        ,,,,    ///// ,.        ,                   {||}            ╠╣   |  $$$$$$/| $$  | $$| $$ \  $$| $$  | $$|  $$$$$$/|  $$$$$/$$$$/| $$  | $$   ╠╣
+//                   *///////. //              /  */////*                           {||}            ╠╣    \______/ |__/  |__/|__/  \__/|__/  |__/ \______/  \_____/\___/ |__/  |__/   ╠╣ 
+//                         .,,  // ,,,,,,,,,, //* ,,,  //////                       {||}            ╠╬╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╦╬╣
+//                           ,,,,,   ,,,,,, ,.,,,,,,,                               {||}            ╚╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╩╝
+//                               ,,,,,,,,,,,, ,,                                    {||}          
+//                                  ,,,,,,,,,                                       {||}                                                                                                                                  
+//                                                                                  {||} 
+//                                                                                  {||} 
+
+//@version=6
+indicator("Median Deviation Suite [InvestorUnknown]", "Median Deviation Suite", overlay = true, max_bars_back = 5000)
+
+import TradingView/ta/9 as ta
+import InvestorUnknown/BacktestLibrary/2 as backtestlib
+
+// - - - - - FUNCTIONS - - - - - //{
+type bar
+    float o             = open
+    float h             = high
+    float l             = low
+    float c             = close
+
+method calc_src(bar b, simple string src) =>
+    float x = switch src
+        "open"          => b.o
+        "high"          => b.h
+        "low"           => b.l
+        "close"         => b.c
+        "oc2"           => math.avg(b.o, b.c          )
+        "hl2"           => math.avg(b.h, b.l          )
+        "occ3"          => math.avg(b.o, b.c, b.c     )
+        "hlc3"          => math.avg(b.h, b.l, b.c     )
+        "ohlc4"         => math.avg(b.o, b.h, b.l, b.c)
+        "hlcc4"         => math.avg(b.h, b.l, b.c, b.c)
+    x
+
+// Function to calculate the Average Absolute Deviation (AAD)
+f_aad(series float src, simple int length, series float x) =>
+    abs_deviations = math.abs(src - x)  // Calculate absolute deviations from average
+    ta.sma(abs_deviations, length)  // Return the average of the absolute deviations
+
+// Function to calculate the Median Absolute Deviation (MAD)
+f_mad(series float src, simple int length, series float x) =>
+    abs_deviations = math.abs(src - x)  // Calculate absolute deviations
+    ta.median(abs_deviations, length)  // Return the median of the absolute deviations
+
+// Function to find the highest number from four numbers
+f_max4(a, b, c, d) =>
+    max_ab = math.max(a, b)
+    max_cd = math.max(c, d)
+    math.max(max_ab, max_cd)
+
+// Function to find the lowest number from four numbers
+f_min4(a, b, c, d) =>
+    min_ab = math.min(a, b)
+    min_cd = math.min(c, d)
+    math.min(min_ab, min_cd)
+//}
+
+
+// - - - - - STRINGS - - - - - //{
+var string G1                       = "General Settings"
+var string G2                       = "Indicator Settings"
+var string G3                       = "Backtest Mode"
+
+var string intrabar_tooltip         = "Updates the Long/Short signal within the bar, but may cause intra-bar signal repainting. This setting also affects alerts."
+var string raw_median_tooltip       = "If false, median of 7 day DEMA is used."
+
+var string use_endDate_tooltip      = "If turned-off, the backtest will run until the current day."
+var string bah_tooltip              = "Plots Buy and Hold Equity for the Backtest Period"
+//}
+
+
+// - - - - - INPUTS - - - - - //{
+
+// General
+simple string disp_mode             = input.string("Overlay", "Display Mode", options = ["Overlay", "Backtest Mode"], group = G1, display = display.none)
+simple bool   intrabar              = input.bool(true, "Allow Intra-bar Updating", tooltip = intrabar_tooltip, group = G1)
+simple bool   color_bars            = input.bool(true, "Color Bars?", group = G1)
+
+// Indicators
+simple string input_src             = input.string("close", "Source", options = ["open", "high", "low", "close", "oc2", "hl2", "occ3", "hlc3", "ohlc4", "hlcc4"], group = G2)
+simple int    median_len            = input.int(28, "Median Length", group = G2)
+
+simple bool   raw_median            = input.bool(false, "Use Raw Median?", group = G2, tooltip = raw_median_tooltip)
+simple int    dev_len               = input.int(21, "Deviation Length", group = G2)
+simple float  dev_mul               = input.float(1.0, "Deviation Multiplier", step = 0.05, group = G2)
+
+// Backtesting Mode
+simple string signals               = input.string("Long & Short", "Allowed Signals", options = ["Long & Short", "Long Only", "Short Only"], group = G3, display = display.none)
+simple float  startDate             = input.time(timestamp("2023-1-1"), "Backtest Start Date", group = G3)
+simple bool   plot_bah              = input.bool(true, "Plot Buy & Hold equity?", tooltip = bah_tooltip, group = G3)
+
+simple int    initial_capital       = input.int(1000, "Initial Capital For Trade Metrics", group = G3, display = display.none)
+simple float  trade_size            = input.float(0.01, "Trade Size % (decimal)", minval = 0.001, maxval = 1.0, group = G3, display = display.none)
+//}
+
+
+// - - - - - CALCULATIONS - - - - - //{
+
+// Calculate sources
+b                                   = bar.new()
+
+float src                           = b.calc_src(input_src)
+
+float dema                          = ta.dema(src, 7)
+float median                        = raw_median ? ta.median(src, median_len) : ta.median(dema, median_len)
+
+// Calculate deviations
+float aad                           = f_aad(src, dev_len, median) * dev_mul
+float mad                           = f_mad(src, dev_len, median) * dev_mul
+float stdev                         = ta.stdev(src, dev_len)      * dev_mul
+float atr                           = ta.atr(dev_len)             * dev_mul
+float avg_dev                       = math.avg(aad, mad, stdev, atr)
+
+// Calculated Median with +dev and -dev
+float aad_p                         = median + aad
+float aad_m                         = median - aad
+
+float mad_p                         = median + mad
+float mad_m                         = median - mad
+
+float stdev_p                       = median + stdev
+float stdev_m                       = median - stdev
+
+float atr_p                         = median + atr
+float atr_m                         = median - atr
+
+float adev_p                        = median + avg_dev
+float adev_m                        = median - avg_dev
+
+// upper and lower
+float upper                         = f_max4(aad_p, mad_p, stdev_p, atr_p)
+float upper2                        = f_min4(aad_p, mad_p, stdev_p, atr_p)
+float lower                         = f_min4(aad_m, mad_m, stdev_m, atr_m)
+float lower2                        = f_max4(aad_m, mad_m, stdev_m, atr_m)
+
+// Define Trend scores
+var int aad_t                       = 0
+if ta.crossover(src, aad_p)
+    aad_t         := 1
+if ta.crossunder(src, aad_m)
+    aad_t         := -1
+
+var int mad_t                       = 0
+if ta.crossover(src, mad_p)
+    mad_t         := 1
+if ta.crossunder(src, mad_m)
+    mad_t         := -1
+
+var int stdev_t                     = 0
+if ta.crossover(src, stdev_p)
+    stdev_t         := 1
+if ta.crossunder(src, stdev_m)
+    stdev_t         := -1
+
+var int atr_t                       = 0
+if ta.crossover(src, atr_p)
+    atr_t         := 1
+if ta.crossunder(src, atr_m)
+    atr_t         := -1
+
+var int adev_t                      = 0
+if ta.crossover(src, adev_p)
+    adev_t         := 1
+if ta.crossunder(src, adev_m)
+    adev_t         := -1
+
+int upper_t                         = src > upper ? 3 : 0
+int lower_t                         = src < lower ? 0 : -3
+int upper2_t                        = src > upper2 ? 1 : 0
+int lower2_t                        = src < lower2 ? 0 : -1
+
+float trend                         = aad_t + mad_t + stdev_t + atr_t + adev_t + upper_t + lower_t + upper2_t + lower2_t
+//}
+
+
+// - - - - - DEFINE COLORS - - - - - //{
+color bcol                           =color.rgb(54, 208, 19)
+color scol                           =color.rgb(227, 34, 34)
+//}
+
+
+// - - - - - SIGNAL - - - - - //{
+var float sig                       = 0
+var color sig_col                   = color.gray
+
+if ta.crossover(trend, 0)
+    sig     := 1
+    sig_col := bcol
+
+else if ta.crossunder(trend, 0)
+    sig     := -1
+    sig_col := scol
+//}
+
+
+// - - - - - PLOTS - - - - - //{
+bool is_backtest                   = disp_mode == "Backtest Mode"
+int  i                             = intrabar ? 0 : 1 // simple index instead of writing it manually every time
+
+plot(not is_backtest ? median[i] : na, "Median",  color = sig_col[i], linewidth = 3)
+U = plot(not is_backtest ? upper[i] : na, "Upper", color = color.new(sig_col[i], 50))
+L = plot(not is_backtest ? lower[i] : na, "Lower", color = color.new(sig_col[i], 50))
+fill(U, L, color = color.new(sig_col[i], 90))
+
+U2 = plot(not is_backtest ? upper2[i] : na, "Upper2", color = color.new(sig_col[i], 50))
+L2 = plot(not is_backtest ? lower2[i] : na, "Lower2", color = color.new(sig_col[i], 50))
+fill(U2, L2, color = color.new(sig_col[i], 90))
+
+A1 = plot(not is_backtest ? adev_p[i] : na, "Average Dev+", color = color.new(sig_col[i], 50))
+A2 = plot(not is_backtest ? adev_m[i] : na, "Average Dev-", color = color.new(sig_col[i], 50))
+fill(A1, A2, color = color.new(sig_col[i], 90))
+
+barcolor(color_bars ? // color_bars == true ? yes -> continue : no -> na
+ (is_backtest ? sig_col[1] : // backtest mode ? yes -> sig_col[1] : no -> continue
+ (intrabar ? sig_col : sig_col[1])) : 
+ na)
+
+// Backtest Mode
+float r                             = 0.0
+float eq                            = 1.0
+float bah                           = 1.0
+
+series int since                    = backtestlib.since(startDate, is_backtest)
+
+if is_backtest
+    r                               := (close[0] - close[1]) / close[1]
+    eq                              := backtestlib.equity(sig, 0, r, startDate, signals)
+    bah                             := backtestlib.buy_and_hold(r, startDate)
+
+plot(is_backtest ? 1 : na, "Base (1) Line", color = color.gray)
+plot(is_backtest ? eq : na, "Backtest Strategy Equity",  color = sig[1] > 0 ? bcol : scol, linewidth = 3)
+plot(is_backtest ? (plot_bah ? bah : na) : na, "Buy & Hold Equity", color = color.rgb(24, 42, 237), linewidth = 2)
+
+if is_backtest and barstate.islast
+    label.new(bar_index + 5, eq, "Strategy", color = sig[1] > 0 ? bcol : scol, textcolor = color.white, style = label.style_label_left)
+    label.new(bar_index + 5, bah, "Buy and Hold", color = color.rgb(24, 42, 237), textcolor = color.white, style = label.style_label_left)
+
+// Performance Metrics Table
+float[] eq_array                    = na
+float[] bah_array                   = na
+
+if is_backtest
+    eq_array                        := backtestlib.PerformanceMetrics(eq,  since, startDate)
+    bah_array                       := backtestlib.PerformanceMetrics(bah, since, startDate)
+
+var table t                         = table.new(position.bottom_left, 20, 20, frame_color = color.gray, frame_width = 1)
+
+bool long_entry                     = ta.crossover(sig, 0)
+bool entry_short                    = ta.crossunder(sig, 0)
+
+[signal, closed_trades_count, closed_long, closed_short, win_trades, win_long, win_short, gross_profit, gross_losses, gross_L_profit, gross_L_losses, gross_S_profit, gross_S_losses] = backtestlib.TradeMetrics(
+ startDate, initial_capital, trade_size, long_entry, entry_short, false, false)
+
+if barstate.islast and is_backtest
+    backtestlib.PerfMetricTable(bah_array, eq_array)
+    backtestlib.TradeMetricsTable(initial_capital, closed_trades_count, closed_long, closed_short, win_trades, win_long, win_short, gross_profit, gross_losses, gross_L_profit, gross_L_losses, gross_S_profit, gross_S_losses)
+//}
+
+
+// - - - - - ALERTS - - - - - //{
+alert_source                        = sig
+
+bool long_alert                     = ta.crossover (intrabar ? alert_source : alert_source[1], 0)
+bool short_alert                    = ta.crossunder(intrabar ? alert_source : alert_source[1], 0)
+
+alertcondition(long_alert,  "LONG (Median Deviation Suite)",  "Median Deviation Suite flipped ⬆LONG⬆")
+alertcondition(short_alert, "SHORT (Median Deviation Suite)", "Median Deviation Suite flipped ⬇Short⬇")
+//}

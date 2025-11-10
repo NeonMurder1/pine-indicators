@@ -1,0 +1,71 @@
+//@version=4
+// This work is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License https://creativecommons.org/licenses/by-sa/4.0/
+// © dman103
+// My own implantation of Heikin Ashi.
+// The Heikin Ashi Trend Indicator (HAT) used to determine the price direction of an asset, as well as draw attention to when the price direction is changing.
+// The HAT indicator translates the current close/open/high/low into Heikin Ashi and smooths them a bit using Tilson T3 formula. 
+// Buy signal when Heikin Ashi Close is bigger than Heikin Ashi Open with Tilson T3 smoothing.
+// Sell signal when Heikin Ashi Open is bigger than Heikin Ashi Close with Tilson T3 smoothing.
+// 
+// Set the 'percentSqueeze' percentage to display possible reversal with light Red/Green crosses. 
+// 
+// Green       - Up Trend
+// Light Green - Possible reversal is near
+// Red         - Down Trend
+// Light Red   - Possible reversal is near
+//
+// Enjoy
+//
+//Follow for more indicators: https://www.tradingview.com/u/dman103/#published-scripts
+study(title="Heikin Ashi Trend Indicator", shorttitle="HAT", overlay=true)
+res = input(title="Resolution", type=input.resolution, defval="")
+colorBars=input(title="Color bars",defval=false)
+show_label_signals = input(false,title="Show Label signals")
+// === Input ===
+percentSqueeze=input(0.2,step=0.1)
+
+// === Tilson T3 ===
+
+T3Factor=input( defval=0.3, minval=0,maxval = 100,step = 0.1,title="T3 Factor")
+T3Length = input(defval=7, minval=1, title ="T3 Length")
+T3FactorCalc = T3Factor *.10
+gd(src, T3Length, T3FactorCalc) => ema(src, T3Length) * (1 + T3FactorCalc) - ema(ema(src, T3Length), T3Length) * T3FactorCalc 
+t3(src, T3Length, T3FactorCalc) => gd(gd(gd(src, T3Length, T3FactorCalc), T3Length, T3FactorCalc), T3Length, T3FactorCalc) 
+
+o = open
+c = close
+h = high
+l = low
+
+ha_t = heikinashi(syminfo.tickerid)
+ha_o = security(ha_t, res, o)
+ha_c = security(ha_t,res, c)
+ha_h = security(ha_t, res, h)
+ha_l = security(ha_t, res, l)
+o2 = t3(ha_o, T3Length, T3FactorCalc) 
+c2 =  t3(ha_c, T3Length, T3FactorCalc) 
+h2 =  t3(ha_h, T3Length, T3FactorCalc) 
+l2 =  t3(ha_l, T3Length, T3FactorCalc) 
+
+percentHL=0.0
+
+percentHL := ((o2 - c2) / avg(o2,c2)) * 100
+
+high_squeeze= abs(percentHL)<percentSqueeze and percentHL>0
+low_squeeze= abs(percentHL)<percentSqueeze and percentHL<0
+
+crossPlot= 0.0
+if (o2 < c2)
+    crossPlot := l2
+else 
+    crossPlot := h2
+o2_cross_under_long = crossunder(o2,c2)
+c2_cross_over_short = crossover(o2,c2)
+plotColor =  high_squeeze ? color.maroon : low_squeeze ? color.teal :  o2 < c2 ? color.lime :  color.red 
+plot(crossPlot, color = plotColor, style = plot.style_cross, linewidth = 2)
+barcolor(colorBars ? plotColor : na)
+//Alert calls
+plotshape(o2_cross_under_long and show_label_signals? close: na, title="Buy", text="B", location=location.belowbar, style=shape.labelup, size=size.tiny, color=color.green, textcolor=color.white)
+alertcondition(o2_cross_under_long, title='Buy', message='Buy Alert')
+plotshape(c2_cross_over_short and show_label_signals? close : na, title="Sell", text="S", location=location.abovebar, style=shape.labeldown, size=size.tiny, color=color.red, textcolor=color.white)
+alertcondition(c2_cross_over_short, title='Sell', message='Sell Alert')

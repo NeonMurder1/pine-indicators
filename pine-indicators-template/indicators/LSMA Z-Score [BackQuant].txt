@@ -1,0 +1,236 @@
+                                // This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+                                                                       // © BackQuant
+//@version=5
+indicator(
+ title="LSMA Z-Score [BackQuant]", 
+ overlay=false, 
+ precision=2, 
+ timeframe="",
+ timeframe_gaps=true
+ )
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+series float src                   = input.source(  close,   "Calculation Source"                                                ,     group = "Calculation"            )
+simple int   len                   = input.int(     30,      "LSMA Calculation Period"                                           ,     group = "Calculation"            )
+simple int   lookback              = input.int(     30,      "Z-Score Lookback Period"                                           ,     group = "Calculation"            )
+
+simple bool  showlevels            = input.bool(    true,    "Show Standard Deviation Levels (0, 1, 2, -1, -2 Levels) ?"         ,     group = "UI Settings" )
+simple bool  showExtreme           = input.bool(    true,    "Show Extreme Levels ?"                                             ,     group = "UI Settings" )
+simple bool  paintCandles          = input.bool(    true,    "Paint Candles on Chart According to Trend?"                        ,     group = "UI Settings" )
+simple bool  showdivergences       = input.bool(    true, "Show Detected Divergences?", group = 'DIVERGENCES')
+simple int   lbR                   = input.int(     title="Pivot Lookback Right", defval=10,                                           group = 'DIVERGENCES', inline = "div")
+simple int   lbL                   = input.int(     title="Pivot Lookback Left", defval=10,                                            group = 'DIVERGENCES', inline = "div")
+simple int   signalLen             = 7
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+// Calculation
+subject    = ta.linreg(src, len, 0)
+mean       = ta.ema(subject, lookback)
+stdDev     = ta.stdev(subject, lookback) 
+zScore     = (subject - mean) / stdDev 
+
+// Long and Short Condtions
+long = zScore > 0
+short = zScore < 0
+
+// Long and Short Conditional
+var trend = 0
+var barcol = #ffffff
+if long and not short 
+	trend := 1
+    barcol := #00ff00
+else if short 
+	trend := -1
+    barcol := #ff0000
+
+
+// Conditional Color 
+posroc = zScore > zScore[1]
+negroc = zScore < zScore[1]
+var color col = #4caf50
+if zScore > 0 and posroc
+    col := #00ff08
+if zScore > 0 and negroc
+    col := #00bbd4
+if zScore < 0 and negroc
+    col := #ff0000
+if zScore < 0 and posroc
+    col := #771515
+
+
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+// Plot LSMA Z-Score
+out  = plot(zScore, "LSMA", color = col, style = plot.style_columns)
+
+// Plotting Hlines
+plotchar(showlevels ? 0 : na, '0', char = "•", location = location.absolute, size = size.tiny, color = #8080804d)
+plot(showlevels ? 1 : na, "1",#8080804d, style = plot.style_linebr)
+plot(showlevels ? 2 : na, "2",#8080804d, style = plot.style_linebr)
+plot(showlevels ? -1 : na, "-1",#8080804d, style = plot.style_linebr)
+plot(showlevels ? -2 : na, "-2",#8080804d, style = plot.style_linebr)
+
+// Adaptive Trend Strength Color
+trendStrength = math.abs(zScore)
+maxStrength = 4.5
+normalizedStrength = math.min(trendStrength / maxStrength * 100, 100)
+alphaValue = int(100 - normalizedStrength)
+
+// Upper Extreme Levels
+u1 = plot(showExtreme ? 4 : na, "Upper", color = #787b864d, editable = false)
+u2 = plot(showExtreme ? 3 : na, color= #787b864d, editable = false)
+fill(u1,u2, color = zScore >= 0 ? color.new(color.rgb(255, 0, 0), alphaValue) : color.rgb(255, 255, 255, 100), title = "Extreme Upper")
+
+// Lower Extreme Levels
+l1 = plot(showExtreme ? -4 : na, "Lower", #787b864d, editable = false)
+l2 = plot(showExtreme ? -3 : na, color = #787b864d, editable = false)
+fill(l1,l2, color = zScore < 0 ? color.new(color.rgb(0, 255, 0), alphaValue) : color.rgb(255, 255, 255, 100), title = "Extreme Lower")
+
+// Paint Candles
+barcolor(paintCandles? barcol : na)
+
+alertcondition(ta.crossover(zScore, 0), "Positive", "LSMA Z-Score Long")
+alertcondition(ta.crossunder(zScore, 0), "Negative", "LSMA Z-Score Short")
+alertcondition(posroc, "Shifting Up", "LSMA Z-Score Shifting Up")
+alertcondition(negroc, "Shifting Down", "LSMA Z-Score Shifting Down")
+
+
+
+
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+
+				// DIVERGENCE CALCULATIONS
+obcol            =       #ff0000fc
+oscol            =       #00ff00fc 
+//  ℍℝ
+bearColor = obcol
+bullColor = oscol
+hiddenBullColor = color.new(oscol, 50)
+hiddenBearColor = color.new(obcol, 50)
+textColor = color.white
+noneColor = color.new(color.white, 100)
+
+plFound = na(ta.pivotlow(zScore, lbL, lbR)) ? false : true
+phFound = na(ta.pivothigh(zScore, lbL, lbR)) ? false : true
+_inRange(cond) =>
+	bars = ta.barssince(cond == true)
+	-80 <= bars and bars <= 80
+
+//------------------------------------------------------------------------------
+// Regular Bullish
+// MOM: Higher Low
+
+oscHL = zScore[lbR] > ta.valuewhen(plFound, zScore[lbR], 1) and _inRange(plFound[1])
+
+// Price: Lower Low
+
+priceLL = low[lbR] < ta.valuewhen(plFound, low[lbR], 1)
+bullCond = showdivergences and priceLL and oscHL and plFound
+
+plot(
+     plFound ? zScore[lbR] : na,
+     offset=-lbR,
+     title="Regular Bullish",
+     linewidth=2,
+     color=(bullCond ? bullColor : noneColor)
+     )
+
+plotshape(
+	 bullCond ? zScore[lbR] : na,
+	 offset=-lbR,
+	 title="Regular Bullish Label",
+	 text="ℝ",
+	 style=shape.labelup,
+	 location=location.absolute,
+	 color=bullColor,
+	 textcolor=textColor
+	 )
+
+//------------------------------------------------------------------------------
+// Hidden Bullish
+// MOM: Lower Low
+
+oscLL = zScore[lbR] < ta.valuewhen(plFound, zScore[lbR], 1) and _inRange(plFound[1])
+
+// Price: Higher Low
+
+priceHL = low[lbR] > ta.valuewhen(plFound, low[lbR], 1)
+hiddenBullCond = showdivergences and priceHL and oscLL and plFound
+
+plot(
+	 plFound ? zScore[lbR] : na,
+	 offset=-lbR,
+	 title="Hidden Bullish",
+	 linewidth=2,
+	 color=(hiddenBullCond ? hiddenBullColor : noneColor)
+	 )
+
+plotshape(
+	 hiddenBullCond ? zScore[lbR] : na,
+	 offset=-lbR,
+	 title="Hidden Bullish Label",
+	 text="ℍ",
+	 style=shape.labelup,
+	 location=location.absolute,
+	 color=bullColor,
+	 textcolor=textColor
+	 )
+
+//------------------------------------------------------------------------------
+// Regular Bearish
+// MOM: Lower High
+
+oscLH = zScore[lbR] < ta.valuewhen(phFound, zScore[lbR], 1) and _inRange(phFound[1])
+
+// Price: Higher High
+
+priceHH = high[lbR] > ta.valuewhen(phFound, high[lbR], 1)
+
+bearCond = showdivergences and priceHH and oscLH and phFound
+
+plot(
+	 phFound ? zScore[lbR] : na,
+	 offset=-lbR,
+	 title="Regular Bearish",
+	 linewidth=2,
+	 color=(bearCond ? bearColor : noneColor)
+	 )
+
+plotshape(
+	 bearCond ? zScore[lbR] : na,
+	 offset=-lbR,
+	 title="Regular Bearish Label",
+	 text="ℝ",
+	 style=shape.labeldown,
+	 location=location.absolute,
+	 color=bearColor,
+	 textcolor=textColor
+	 )
+
+//------------------------------------------------------------------------------
+// Hidden Bearish
+// MOM: Higher High
+
+oscHH = zScore[lbR] > ta.valuewhen(phFound, zScore[lbR], 1) and _inRange(phFound[1])
+
+// Price: Lower High
+
+priceLH = high[lbR] < ta.valuewhen(phFound, high[lbR], 1)
+
+hiddenBearCond = showdivergences and priceLH and oscHH and phFound
+
+plot(
+	 phFound ? zScore[lbR] : na,
+	 offset=-lbR,
+	 title="Hidden Bearish",
+	 linewidth=2,
+	 color=(hiddenBearCond ? hiddenBearColor : noneColor)
+	 )
+
+plotshape(
+	 hiddenBearCond ? zScore[lbR] : na,
+	 offset=-lbR,
+	 title="Hidden Bearish Label",
+	 text="ℍ",
+	 style=shape.labeldown,
+	 location=location.absolute,
+	 color=bearColor,
+	 textcolor=textColor
+	 )

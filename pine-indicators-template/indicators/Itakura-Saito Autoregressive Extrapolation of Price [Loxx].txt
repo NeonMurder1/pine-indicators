@@ -1,0 +1,224 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © loxx
+
+//@version=5
+indicator("Itakura-Saito Autoregressive Extrapolation of Price [Loxx]", 
+     shorttitle = "ISAGEP [Loxx]",
+     overlay = true, 
+     max_lines_count = 500)
+
+import loxx/loxxexpandedsourcetypes/4
+
+greencolor = #2DD204
+redcolor = #D2042D 
+bluecolor = #042dd2
+
+_Geom(float[] x, int p)=>
+    int n = array.size(x)
+    float[] df = array.new<float>(n, 0.)
+    float[] db = array.new<float>(n, 0.)
+    float[] result = array.new<float>(n, 0.)
+
+    int kh = 0 
+    int ki = 0
+    
+    float tmp = 0.
+    float num = 0.
+    float denf = 0.
+    float denb = 0.
+    float r = 0.
+
+    for i = 0 to n - 1
+        array.set(df, i, array.get(x, i))
+        array.set(db, i, array.get(x, i))
+        
+    //Main loop
+    for k = 1 to p 
+        num := 0.
+        denf := 0.
+        denb := 0.
+        for i = k to n - 1
+            num += array.get(df, i) * array.get(db, i - 1)
+            denf += math.pow(array.get(df, i), 2)
+            denb += math.pow(array.get(db, i - 1), 2)
+        
+        r := -num / math.sqrt(denf) / math.sqrt(denb)
+        
+        //Calculate prediction coefficients
+        array.set(result, k, r)
+        kh := k / 2
+        for i = 1 to kh 
+            ki := k - i
+            tmp := array.get(result, i)
+            array.set(result, i, array.get(result, i) + r * array.get(result, ki))
+            if (i != ki) 
+                array.set(result, ki, array.get(result, ki) + r * tmp)
+        if (k < p)
+            for i = n - 1 to k 
+                tmp1 = array.get(df, i)
+                array.set(df, i, array.get(df, i) + r * array.get(db, i - 1))
+                array.set(db, i, array.get(db, i - 1) + r * tmp1)
+    result
+
+smthtype = input.string("Kaufman", "Heikin-Ashi Better Caculation Type", options = ["AMA", "T3", "Kaufman"], group = "Source Settings")
+srcin = input.string("Open", "Source", group= "Source Settings", 
+     options = 
+     ["Close", "Open", "High", "Low", "Median", "Typical", "Weighted", "Average", "Average Median Body", "Trend Biased", "Trend Biased (Extreme)", 
+     "HA Close", "HA Open", "HA High", "HA Low", "HA Median", "HA Typical", "HA Weighted", "HA Average", "HA Average Median Body", "HA Trend Biased", "HA Trend Biased (Extreme)",
+     "HAB Close", "HAB Open", "HAB High", "HAB Low", "HAB Median", "HAB Typical", "HAB Weighted", "HAB Average", "HAB Average Median Body", "HAB Trend Biased", "HAB Trend Biased (Extreme)"])
+
+LastBar = input.int(30, "Last Bar", group = "Basic Settings", tooltip = "Bar from where to start prediction")
+PastBars = input.int(300, "Past Bars", group = "Basic Settings", maxval = 2000)
+LPOrder = input.float(0.6, "Order of Linear Prediction", group = "Basic Settings", minval = 0, maxval = 1, step = 0.01) 
+FutBars = input.int(100, "Future Bars", group = "Basic Settings", maxval = 500)
+
+
+colorbars = input.bool(true, "Mute bar colors?", group = "UI Options")
+
+kfl=input.float(0.666, title="* Kaufman's Adaptive MA (KAMA) Only - Fast End", group = "Moving Average Inputs")
+ksl=input.float(0.0645, title="* Kaufman's Adaptive MA (KAMA) Only - Slow End", group = "Moving Average Inputs")
+amafl = input.int(2, title="* Adaptive Moving Average (AMA) Only - Fast", group = "Moving Average Inputs")
+amasl = input.int(30, title="* Adaptive Moving Average (AMA) Only - Slow", group = "Moving Average Inputs")
+
+haclose = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, close)
+haopen = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, open)
+hahigh = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, high)
+halow = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, low)
+hamedian = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, hl2)
+hatypical = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, hlc3)
+haweighted = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, hlcc4)
+haaverage = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, ohlc4)
+
+src = switch srcin
+	"Close" => loxxexpandedsourcetypes.rclose()
+	"Open" => loxxexpandedsourcetypes.ropen()
+	"High" => loxxexpandedsourcetypes.rhigh()
+	"Low" => loxxexpandedsourcetypes.rlow()
+	"Median" => loxxexpandedsourcetypes.rmedian()
+	"Typical" => loxxexpandedsourcetypes.rtypical()
+	"Weighted" => loxxexpandedsourcetypes.rweighted()
+	"Average" => loxxexpandedsourcetypes.raverage()
+    "Average Median Body" => loxxexpandedsourcetypes.ravemedbody()
+	"Trend Biased" => loxxexpandedsourcetypes.rtrendb()
+	"Trend Biased (Extreme)" => loxxexpandedsourcetypes.rtrendbext()
+	"HA Close" => loxxexpandedsourcetypes.haclose(haclose)
+	"HA Open" => loxxexpandedsourcetypes.haopen(haopen)
+	"HA High" => loxxexpandedsourcetypes.hahigh(hahigh)
+	"HA Low" => loxxexpandedsourcetypes.halow(halow)
+	"HA Median" => loxxexpandedsourcetypes.hamedian(hamedian)
+	"HA Typical" => loxxexpandedsourcetypes.hatypical(hatypical)
+	"HA Weighted" => loxxexpandedsourcetypes.haweighted(haweighted)
+	"HA Average" => loxxexpandedsourcetypes.haaverage(haaverage)
+    "HA Average Median Body" => loxxexpandedsourcetypes.haavemedbody(haclose, haopen)
+	"HA Trend Biased" => loxxexpandedsourcetypes.hatrendb(haclose, haopen, hahigh, halow)
+	"HA Trend Biased (Extreme)" => loxxexpandedsourcetypes.hatrendbext(haclose, haopen, hahigh, halow)
+	"HAB Close" => loxxexpandedsourcetypes.habclose(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Open" => loxxexpandedsourcetypes.habopen(smthtype, amafl, amasl, kfl, ksl)
+	"HAB High" => loxxexpandedsourcetypes.habhigh(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Low" => loxxexpandedsourcetypes.hablow(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Median" => loxxexpandedsourcetypes.habmedian(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Typical" => loxxexpandedsourcetypes.habtypical(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Weighted" => loxxexpandedsourcetypes.habweighted(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Average" => loxxexpandedsourcetypes.habaverage(smthtype, amafl, amasl, kfl, ksl)
+    "HAB Average Median Body" => loxxexpandedsourcetypes.habavemedbody(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Trend Biased" => loxxexpandedsourcetypes.habtrendb(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Trend Biased (Extreme)" => loxxexpandedsourcetypes.habtrendbext(smthtype, amafl, amasl, kfl, ksl)
+	=> haclose
+	
+barcolor(colorbars ? color.gray : na)
+
+int lb = LastBar
+int np = PastBars
+int no = math.ceil(LPOrder * PastBars)
+int nf = np - no - 1
+
+float[] x = array.new<float>(np, 0.)
+float[] pv = array.new<float>(np, 0.)
+float[] fv = array.new<float>(nf + 1, 0.)
+
+var pvlines = array.new_line(0)
+var fvlines = array.new_line(0)
+
+cnp = np >= 250 ? 250 : np
+cnf = nf >= 250 ? 250 : nf
+
+if barstate.isfirst
+    for i = 0 to 250 - 1
+        array.push(pvlines, line.new(na, na, na, na))
+        array.push(fvlines, line.new(na, na, na, na))
+
+if barstate.islast
+    //Prepare data
+    
+    float av = 0.
+    avar = array.new<float>(np, 0.)
+    for i = 0 to np - 1
+        array.set(avar, i, nz(src[i + lb]))
+    av := array.avg(avar)
+    
+    for i = 0 to np - 1
+        array.set(x, np - 1 - i, nz(src[i + lb]) - av)
+    
+    //Use linear prediction _Geom
+    float[] result = _Geom(x, no)
+
+    //Calculate linear predictions
+    //Calculate linear predictions
+    for n = no to np + nf - 1
+        float sum = 0.
+        for i = 1 to no 
+            if (n - i < np)
+                sum -= array.get(result, i) * array.get(x, n - i)
+            else
+                sum -= array.get(result, i) * array.get(fv, n - i - np + 1)
+        if (n < np)
+            array.set(pv, np - 1 - n, sum)
+        else
+            array.set(fv, n - np + 1, sum)
+    
+    array.set(fv, 0, array.get(pv, 0))
+    for i = 0 to np - no - 1
+        array.set(pv, i, array.get(pv, i) + av)
+        array.set(fv, i, array.get(fv, i) + av)
+        
+    //+------------------------------------------------------------------+
+    //| Draw lines w/ skipping to stay within 500 line limit
+    //+------------------------------------------------------------------+
+    skipperpv = array.size(pv) >= 2000 ? 8 : array.size(pv) >= 1000 ? 4 : array.size(pv) >= 500 ? 2 : 1
+    int i = 0
+    int j = 0
+
+    while i < np - no - 1 - skipperpv
+
+        if j > array.size(pvlines) - 1
+            break
+
+        pvline = array.get(pvlines, j)
+        line.set_xy1(pvline, bar_index - i - skipperpv - LastBar, array.get(pv, i + skipperpv))
+        line.set_xy2(pvline, bar_index - i - LastBar, array.get(pv, i))
+        line.set_color(pvline, greencolor)
+        line.set_style(pvline, line.style_solid)
+        line.set_width(pvline, 3)
+
+        i += skipperpv
+        j += 1
+    
+    skipperfv = array.size(fv) >= 2000 ? 8 : array.size(fv) >= 1000 ? 4 : array.size(fv) >= 500 ? 2 : 1
+    
+    i := 0
+    j := 0
+    outer = math.min(np - no - 1, FutBars)
+    while i < outer - skipperfv
+        
+        if j > array.size(fvlines) - 1
+            break
+            
+        fvline = array.get(fvlines, j)
+        line.set_xy1(fvline, bar_index + i + 1 - LastBar, array.get(fv, i + skipperfv))
+        line.set_xy2(fvline, bar_index + i + 1 - LastBar - skipperfv, array.get(fv, i))
+        line.set_color(fvline, color.blue)
+        line.set_style(fvline, line.style_solid)
+        line.set_width(fvline, 2)
+        
+        i += skipperfv
+        j += 1

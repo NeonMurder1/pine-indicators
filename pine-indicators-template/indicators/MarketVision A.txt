@@ -1,0 +1,682 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Lij_MC 
+
+// With Special Thanks to Everyone who has gone before me, and who have both allowed me given and me permission to bring my version of Market Cipher to the World 
+// Especially LazyBear for his amazing Wave Trend Oscillator and for Aevir, falconCoin, vumanchu, Crypto_Spike and others who have freely brought MarketCipher to the Tradingview Community  and Also JustUncleL for his Multiple MA Variations / types
+//
+// MarketVision A - My take on MarketCipher A / Market Cipher A But with a few Additions
+//
+// A Combination of; 
+//
+// Different Types of Moving Averages including a Ribbon which can be switched off
+// MA Cross Over Signals &
+// Signals Obtained from Wave Trend, Nexus and Trend Meter etc
+//
+// Lots Of Alerts
+//
+// Use Stand Alone or In Combination with MarketVision B Aswell As Support and Resistance
+
+
+//@version=4
+study("MarketVision A", overlay=true)
+
+ 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// MA Type Function Calculation
+
+// - variant(type, src, len, gamma)
+// Returns MA input selection variant, default to SMA if blank or typo.
+
+// SuperSmoother filter
+// © 2013  John F. Ehlers
+variant_supersmoother(src,len) =>
+    a1 = exp(-1.414*3.14159 / len)
+    b1 = 2*a1*cos(1.414*3.14159 / len)
+    c2 = b1
+    c3 = (-a1)*a1
+    c1 = 1 - c2 - c3
+    v9 = 0.0
+    v9 := c1*(src + nz(src[1])) / 2 + c2*nz(v9[1]) + c3*nz(v9[2])
+    v9
+
+variant_smoothed(src,len) =>
+    v5 = 0.0
+    v5 := na(v5[1]) ? sma(src, len) : (v5[1] * (len - 1) + src) / len
+    v5
+
+variant_zerolagema(src,len) =>
+    xLag = (len - 1) / 2
+    xEMA = (src + (src - src[xLag]))
+    v10  = ema(xEMA, len)
+    v10
+    
+variant_doubleema(src,len) =>
+    v2 = ema(src, len)
+    v6 = 2 * v2 - ema(v2, len)
+    v6
+
+variant_tripleema(src,len) =>
+    v2 = ema(src, len)
+    v7 = 3 * (v2 - ema(v2, len)) + ema(ema(v2, len), len)               // Triple Exponential
+    v7
+
+variant_linear_regression_ema(src,len) =>
+    LREMAx       = bar_index
+    LREMAy       = src
+    LREMAx_      = ema(LREMAx,   len)
+    LREMAy_      = ema(LREMAy,   len)
+    LREMAmx      = stdev(LREMAx, len)
+    LREMAmy      = stdev(LREMAy, len)
+    LREMAc       = correlation(LREMAx, LREMAy, len)
+    LREMAslope   = LREMAc * (LREMAmy / LREMAmx)
+    LREMAinter   = LREMAy_ - LREMAslope * LREMAx_
+    LREMALinReg1 = 0.0
+    LREMALinReg1 := LREMAx * LREMAslope + LREMAinter
+
+variant_linear_regression_sma(src,len) =>
+    LRSMAx       = bar_index
+    LRSMAy       = src
+    LRSMAx_      = sma(LRSMAx,   len)
+    LRSMAy_      = sma(LRSMAy,   len)
+    LRSMAmx      = stdev(LRSMAx, len)
+    LRSMAmy      = stdev(LRSMAy, len)
+    LRSMAc       = correlation(LRSMAx, LRSMAy, len)
+    LRSMAslope   = LRSMAc * (LRSMAmy / LRSMAmx)
+    LRSMAinter   = LRSMAy_ - LRSMAslope * LRSMAx_
+    LRSMALinReg1 = 0.0
+    LRSMALinReg1 := LRSMAx * LRSMAslope + LRSMAinter
+    
+// return variant, defaults to SMA 
+variant(type, src, len) =>
+    result = src
+    if len>1
+        result := type=="EMA"     ? ema(src,len) : 
+          type=="WMA"   ? wma(src,len): 
+          type=="VWMA"  ? vwma(src,len) : 
+          type=="SMMA"  ? variant_smoothed(src,len) : 
+          type=="DEMA"  ? variant_doubleema(src,len): 
+          type=="TEMA"  ? variant_tripleema(src,len): 
+          type=="HullMA"? wma(2 * wma(src, len / 2) - wma(src, len), round(sqrt(len))) :
+          type=="SSMA"  ? variant_supersmoother(src,len) : 
+          type=="ZEMA"  ? variant_zerolagema(src,len) : 
+          type=="TMA"   ? sma(sma(src,len),len) : 
+          type=="SMA Linear Regression"? variant_linear_regression_sma(src,len) :  
+          type=="EMA Linear Regression"? variant_linear_regression_ema(src,len) :
+          type=="Dual MA's - 15 EMA & 20 SMA (EMA = Main, SMA = Secondary)"? ema(src,len) :
+          type=="Dual MA's - 20 SMA & 15 EMA (SMA = Main, EMA = Secondary)"? sma(src,len) :
+                         sma(src,len)
+    //end if
+    result
+
+ma_src = close
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+//MA Inputs
+
+
+// ShowMarketVisionBSignals  = input(true, "Signals - MarketVision Signals")
+
+TurnOffMAsIn              = input(false, "❌ Remove All MA's ❌ ", group = "Ribbon & MA's")
+
+
+ShowRibbon                = input(true, "Ribbon",                                                                                                                                                                                          group = "Ribbon", inline = "Ribbon", tooltip = "MAs - 5*, 11, 15, 18, 21, 25, 29, 33, 36                    Invert Ribbon Colors For Dark Mode")
+type1                     = input(defval="EMA",                                                         title="",                           options=["SMA", "EMA", "WMA", "VWMA", "SMMA", "DEMA", "TEMA", "HullMA", "ZEMA", "TMA", "SSMA"], group = "Ribbon", inline = "Ribbon")
+
+ColorScheme               = input(defval="Purple",                                                      title="",                           options=["Blue", "Purple"],                                                                     group = "Ribbon", inline = "Ribbon")
+InvertRibbonColors        = input(false, "Invert Ribbon Colors",                                                                                                                                                                            group = "Ribbon", inline = "Ribbon")
+
+
+show5MA                   = input(true, "5 MA",                                                                                                                                                                                             group = "MA's",   inline = "5 MA")
+type5MA                   = input(defval="EMA",                                                         title=" - - - - - ",                options=["SMA", "EMA", "WMA", "VWMA", "SMMA", "DEMA", "TEMA", "HullMA", "ZEMA", "TMA", "SSMA"], group = "MA's",   inline = "5 MA")
+
+
+show15or20MA              = input(true, "15 / 20 MA -",                                                                                                                                                                                     group = "MA's",   inline = "Show - 15 / 20 MA")
+MA15or20MAIn              = input(defval="20",                                                          title="",                           options=["15", "20"],                                                                           group = "MA's",   inline = "Show - 15 / 20 MA")
+type15or20MA              = input(defval="SMA",                                                         title="",                           options=["Dual MA's - 15 EMA & 20 SMA (EMA = Main, SMA = Secondary)", "Dual MA's - 20 SMA & 15 EMA (SMA = Main, EMA = Secondary)", "SMA", "EMA", "WMA", "VWMA", "SMMA", "DEMA", "TEMA", "HullMA", "ZEMA", "TMA", "SSMA"], group = "MA's", inline = "Show - 15 / 20 MA")
+
+
+type15or20MAisMA          = (type15or20MA=="SMA" or type15or20MA=="EMA" or type15or20MA=="WMA" or type15or20MA=="VWMA" or type15or20MA=="SMMA" or type15or20MA=="DEMA" or  type15or20MA=="TEMA" or type15or20MA=="HullMA" or type15or20MA=="ZEMA" or type15or20MA=="TMA" or type15or20MA=="SSMA")  
+type15or20MASMAEMA        = type15or20MAisMA or type15or20MA=="Dual MA's - 20 SMA & 15 EMA (SMA = Main, EMA = Secondary)"
+type15or20MAEMASMA        = type15or20MAisMA or type15or20MA=="Dual MA's - 15 EMA & 20 SMA (EMA = Main, SMA = Secondary)"
+type15or20MADual          = type15or20MA=="Dual MA's - 15 EMA & 20 SMA (EMA = Main, SMA = Secondary)" or type15or20MA=="Dual MA's - 20 SMA & 15 EMA (SMA = Main, EMA = Secondary)"
+
+MA15or20MAMain            = MA15or20MAIn=="15" and type15or20MAEMASMA ? 15 : MA15or20MAIn=="20" and type15or20MASMAEMA ? 20 : MA15or20MAIn=="20" and type15or20MA=="Dual MA's - 15 EMA & 20 SMA (EMA = Main, SMA = Secondary)" ? 15 : 20
+MA15or20MASecondary       = MA15or20MAIn=="15" and type15or20MAEMASMA ? 20 : MA15or20MAIn=="20" and type15or20MASMAEMA ? 15 : MA15or20MAIn=="20" and type15or20MA=="Dual MA's - 15 EMA & 20 SMA (EMA = Main, SMA = Secondary)" ? 20 : 15
+type15or20MASecondary     = type15or20MA=="Dual MA's - 20 SMA & 15 EMA (SMA = Main, EMA = Secondary)" ? "EMA" : "SMA"
+
+
+show50MA                  = input(true, "50 MA - - - -",            group = "MA's",          inline = "Show - 50 MA")
+type2                     = input(defval="SMA",                     title="",                options=["SMA", "EMA", "WMA", "VWMA", "SMMA", "DEMA", "TEMA", "HullMA", "ZEMA", "TMA", "SSMA"],                          group = "MA's", inline = "Show - 50 MA")
+// type2                     = input(defval="SMA",                     title="",                options=["Dual MA's - SMA + EMA", "SMA", "EMA", "WMA", "VWMA", "SMMA", "DEMA", "TEMA", "HullMA", "ZEMA", "TMA", "SSMA"], group = "MA's", inline = "Show - 50 MA")
+
+show100MA                 = input(true, "100 MA - - -",             group = "MA's",          inline = "Show - 100 MA")
+type3                     = input(defval="EMA",                     title="",                options=["SMA", "EMA", "WMA", "VWMA", "SMMA", "DEMA", "TEMA", "HullMA", "ZEMA", "TMA", "SSMA"],                          group = "MA's", inline = "Show - 100 MA")
+// type3                     = input(defval="EMA",                     title="",                options=["Dual MA's - SMA + EMA", "SMA", "EMA", "WMA", "VWMA", "SMMA", "DEMA", "TEMA", "HullMA", "ZEMA", "TMA", "SSMA"], group = "MA's", inline = "Show - 100 MA")
+
+show200MA                 = input(true, "200 MA - - -",             group = "MA's",          inline = "Show - 200 MA")
+type4                     = input(defval="Dual MA's - SMA + EMA",   title="",                options=["Dual MA's - SMA + EMA", "SMA", "EMA", "WMA", "VWMA", "SMMA", "DEMA", "TEMA", "HullMA", "ZEMA", "TMA", "SSMA"], group = "MA's", inline = "Show - 200 MA")
+ShadeDual200MA            = true  // input(true, "Shade Dual 200 MA Region", group = "MA's",          inline = "Show - 200 MA")
+
+
+// Signal Inputs
+
+ShowSignals               = input(true,  "Show Signals - - - - -",                                                group = "Signals", inline = "Signals")
+ShowRecentSignalsIn       = input(25,    "For The Last x No. of Bars Only", minval = 0, maxval = 10000, step = 5, group = "Signals", inline = "Signals")
+
+
+ShowWaveTrendSignals      = input(true,  "Wave Trend - - - - - -",                                                group = "Signals", inline = "Signals - Wave Trend",  tooltip = "Red & Green Diamonds ◇, Yellow X's")
+MVTranspIn                = input(65,    "Brightness",                      minval = 0, maxval = 100, step = 5,   group = "Signals", inline = "Signals - Wave Trend")
+MVTransp                  = 100 - MVTranspIn
+
+
+ShowEngulfingLabels       = input(true,  "Engulfing Bars - - - -",                                                group = "Signals", inline = "Signals - Engulfing",   tooltip = "Engulfing Bar Candle Pattern - Red E Above Bar, Green E Below Bar")
+EngulfingTranspIn         = input(70,    "Brightness",                      minval=0, maxval=100, step=5,         group = "Signals", inline = "Signals - Engulfing")
+EngulfingTransp           = 100 - EngulfingTranspIn
+
+
+Show3LineStrikeLabels     = input(true,  "3 Line Strike - - - - -",                                               group = "Signals", inline = "Signals - 3LS",         tooltip = "3 Line Strike Candle Pattern - Red 3 Above Bar, Green 3 Below Bar")
+ThreeLineStrikeTranspIn   = input(100,   "Brightness",                      minval=0, maxval=100, step=5,         group = "Signals", inline = "Signals - 3LS")
+// Show3LineStrikeHistory    = input(true,  "Show All History",                                                      group = "Signals", inline = "Signals - 3LS")
+ThreeLineStrikeTransp     = 100 - ThreeLineStrikeTranspIn
+// ThreeLineStrikeLookBack   = Show3LineStrikeHistory ? 00 : ShowRecentSignalsIn
+
+
+ShowTrendMeterSignals     = input(true, "Trend Meter - - - - -",                                                  group = "Signals", inline = "Signals - Trend Meter", tooltip = "Small Triangles - Red ▼ Above Bar, Green ▲ Below Bar")
+TMTranspIn                = input(65,    "Brightness",                      minval = 0, maxval = 100, step = 5,   group = "Signals", inline = "Signals - Trend Meter")
+TMTransp                  = 100 - TMTranspIn
+
+
+ShowLeledc                = input(true,  "Leledc Exhaustion - ",                                                  group = "Signals", inline = "Signals - Exhaustion",  tooltip = "May Signal Exhaustion - Large Red O Above Bar / Green O Below Bar")
+LeledcTranspIn            = input(50,    "Brightness",                      minval=0, maxval=100, step=5,         group = "Signals", inline = "Signals - Exhaustion")
+LeledcTransp              = 100 - LeledcTranspIn
+
+
+ShowNexus                 = input(true,  "Nexus - - - - - - - - -",                                               group = "Signals", inline = "Signals - Nexus",       tooltip = "Blue Diamonds ◇")      
+SigTranspIn               = input(70,    "Brightness",                      minval = 0, maxval = 100, step = 5,   group = "Signals", inline = "Signals - Nexus")
+SignalTransp              = 100 - SigTranspIn
+
+
+Show511EMACross           = input(true,  "MA Cross - 5 / 11 - - ",                                                group = "Signals", inline = "MA Cross - 5 / 11",     tooltip = "Small Red & Green X's")
+EMACross511TranspIn       = input(65,    "Brightness",                      minval = 0, maxval = 100, step = 5,   group = "Signals", inline = "MA Cross - 5 / 11")
+EMACross511Transp         = 100 - EMACross511TranspIn
+
+
+Show815EMACross           = input(false, "MA Cross - 11 / 15 -",                                                  group = "Signals", inline = "MA Cross - 11 / 15",    tooltip = "Blue Triangles ▼ & ▲")
+EMACross1115TranspIn      = input(50,    "Brightness",                      minval = 0, maxval = 100, step = 5,   group = "Signals", inline = "MA Cross - 11 / 15")
+EMACross1115Transp        = 100 - EMACross1115TranspIn
+
+
+Show1136EMACross          = input(false, "MA Cross - 11 / 36 -",                                                  group = "Signals", inline = "MA Cross - 11 / 36",    tooltip = "Medium Sized Green or Red Dots ●")
+EMACross1136TranspIn      = input(40,    "Brightness",                      minval = 0, maxval = 100, step = 5,   group = "Signals", inline = "MA Cross - 11 / 36")
+EMACross1136Transp        = 100 - EMACross1136TranspIn
+
+
+MACrossMATypeIn           = input(defval="EMA", title="- - - MA Crosses - MA Type", options=["EMA", "≃ Ribbon"],  group = "Signals", inline = "MA Cross",              tooltip = "MA Type that will be used for MA Cross Signals")
+MACrossMAType             = MACrossMATypeIn == "EMA" ? "EMA" : type1
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// MA Calculations
+
+RibbonMA5or36  = InvertRibbonColors ?  5  : 36
+RibbonMA11or33 = InvertRibbonColors ? 11  : 33
+RibbonMA15or29 = InvertRibbonColors ? 15  : 29
+RibbonMA18or25 = InvertRibbonColors ? 18  : 25
+
+RibbonMA25or18 = InvertRibbonColors ? 25  : 18
+RibbonMA29or15 = InvertRibbonColors ? 29  : 15
+RibbonMA33or11 = InvertRibbonColors ? 33  : 11
+RibbonMA36or5  = InvertRibbonColors ? 36  : 5
+
+RibbonMA1     = variant(type1,  ma_src, RibbonMA5or36)
+RibbonMA2     = variant(type1,  ma_src, RibbonMA11or33)
+RibbonMA3     = variant(type1,  ma_src, RibbonMA15or29)
+RibbonMA4     = variant(type1,  ma_src, RibbonMA18or25)
+RibbonMA5     = variant(type1,  ma_src, 21)
+RibbonMA6     = variant(type1,  ma_src, RibbonMA25or18)
+RibbonMA7     = variant(type1,  ma_src, RibbonMA29or15)
+RibbonMA8     = variant(type1,  ma_src, RibbonMA33or11)
+RibbonMA9     = variant(type1,  ma_src, RibbonMA36or5)
+
+ma5MAout      = variant(type5MA,ma_src,  5)
+
+Main15or20MA  = variant(type15or20MA,          ma_src, MA15or20MAMain)
+Main15or20MAb = variant(type15or20MASecondary, ma_src, MA15or20MASecondary)
+
+Main50MA      = variant(type2,  ma_src, 50)
+Main50MAb     = variant("EMA",  ma_src, 50)
+
+Main100MA     = variant(type3,  ma_src, 100)
+Main100MAb    = variant("EMA",  ma_src, 100)
+
+Main200MA     = variant(type4,  ma_src, 200)
+Main200MAb    = variant("EMA",  ma_src, 200)
+
+
+// Color Calculations
+
+color1= ColorScheme=="Purple"? #8F00FF : #265aa6
+color2= ColorScheme=="Purple"? #966FD6 : #1976d2
+color3= ColorScheme=="Purple"? #E0B0FF : #7fb3ff
+color4= ColorScheme=="Purple"? #FBCCE7 : #bbdefb
+
+colorma = Main50MA > Main50MA[1] ? color.lime : color.red
+
+
+// MA Plots
+
+plot(not TurnOffMAsIn and show5MA ?                                        ma5MAout      : na, color=ShowRibbon ? na     : color.green,               linewidth=1, transp=30, title="5 MA *")
+plot(not TurnOffMAsIn ?                                                    RibbonMA1     : na, color=ShowRibbon ? color1 : na,                        linewidth=2, transp=50, title="Ribbon - 5 or 36 MA -  Depends on Ribbon Color Inversion)")
+
+plot(not TurnOffMAsIn ?                                                    RibbonMA2     : na, color=ShowRibbon ? color1 : na,                        linewidth=2, transp=50, title="Ribbon - 11 or 33 MA - Depends on Ribbon Color Inversion")
+
+plot(not TurnOffMAsIn and show15or20MA ?                                   Main15or20MA  : na, color=ShowRibbon ? na     : #2049E1,                   linewidth=1, transp=22, title="15 / 20 MA ")
+plot(not TurnOffMAsIn and show15or20MA and type15or20MADual ?              Main15or20MAb : na, color=ShowRibbon ? na     : color.new(color.blue, 50), linewidth=1, transp=22, title="15 / 20 MA - Dual MA - Secondary MA")
+plot(not TurnOffMAsIn ?                                                    RibbonMA3     : na, color=ShowRibbon ? color2 : na,                        linewidth=2, transp=50, title="Ribbon - 15 or 29 MA - Depends on Ribbon Color Inversion")
+
+plot(not TurnOffMAsIn ?                                                    RibbonMA4     : na, color=ShowRibbon ? color2 : na,                        linewidth=2, transp=50, title="Ribbon - 18 or 25 MA - Depends on Ribbon Color Inversion")
+
+plot(not TurnOffMAsIn ?                                                    RibbonMA5     : na, color=ShowRibbon ? color3 : na,                        linewidth=2, transp=50, title="Ribbon - 21 MA")
+plot(not TurnOffMAsIn ?                                                    RibbonMA6     : na, color=ShowRibbon ? color3 : na,                        linewidth=2, transp=50, title="Ribbon - 25 or 18 MA - Depends on Ribbon Color Inversion")
+
+plot(not TurnOffMAsIn ?                                                    RibbonMA7     : na, color=ShowRibbon ? color4 : na,                        linewidth=2, transp=50, title="Ribbon - 29 or 15 MA - Depends on Ribbon Color Inversion")
+plot(not TurnOffMAsIn ?                                                    RibbonMA8     : na, color=ShowRibbon ? color4 : na,                        linewidth=2, transp=50, title="Ribbon - 33 or 11 MA - Depends on Ribbon Color Inversion")
+plot(not TurnOffMAsIn ?                                                    RibbonMA9     : na, color=ShowRibbon ? color4 : na,                        linewidth=2, transp=50, title="Ribbon - 36 or 5 MA -  Depends on Ribbon Color Inversion")
+
+
+plot(show50MA  and not TurnOffMAsIn ?                                      Main50MA      : na,                    color=colorma,                      linewidth=2, transp=25, title="50 MA")
+// plot(show50MA  and type2=="Dual MA's - SMA + EMA"   and not TurnOffMAsIn ? Main50MAb     : na,                    color=colorma,                      linewidth=2, transp=50, title="50 MA - Dual MA - EMA")
+
+plot(show100MA and not TurnOffMAsIn ?                                      Main100MA     : na,                    color=#E19D00,                      linewidth=1, transp=5,  title="100 MA")                    // UCLA Gold  = #FFB300
+// plot(show100MA and type3=="Dual MA's - SMA + EMA"   and not TurnOffMAsIn ? Main100MAb    : na,                    color=color.orange,                 linewidth=1, transp=5,  title="100 MA - Dual MA - EMA")
+
+a=plot(show200MA and not TurnOffMAsIn ?                                    Main200MA     : na,                    color=#E10D02,                      linewidth=2, transp=10, title="200 MA")                    // Tomato Red = #FF6347
+b=plot(show200MA and type4=="Dual MA's - SMA + EMA" and not TurnOffMAsIn ? Main200MAb    : na,                    color=color.green,                  linewidth=2, transp=10, title="200 MA - Dual MA - EMA")   
+
+
+MA200RegionFillColor = ShadeDual200MA and (Main200MAb > Main200MA) ? color.new(color.green, 93) : ShadeDual200MA and (Main200MAb < Main200MA) ? color.new(color.red, 93) : na
+
+fill(a, b, color=MA200RegionFillColor, title="200 Dual MA - Fill Area ")
+
+
+// PriceIn15EMA20SMARegion     = ((ema(close, 15) > sma(close, 20)) and (close >= sma(close, 20)) and (close <= ema(close, 15))) or ((ema(close, 15) < sma(close, 20)) and (close <= sma(close, 20)) and (close >= ema(close, 15)))  ?        1 : 0
+// PriceEnters15EMA20SMARegion = PriceIn15EMA20SMARegion and not PriceIn15EMA20SMARegion[1]
+
+// alertcondition(PriceEnters15EMA20SMARegion,                                       title='Alert - Price Enters 15 EMA 20 SMA Zone',         message='Price Enters 15 EMA 20 SMA Zone - MarketVision A')
+
+
+// PriceIn50EMASMARegion     = ((ema(close, 50) > sma(close, 50)) and (close >= sma(close, 50)) and (close <= ema(close, 50))) or ((ema(close, 50) < sma(close, 50)) and (close <= sma(close, 50)) and (close >= ema(close, 50)))  ?          1 : 0
+// PriceEnters50EMASMARegion = PriceIn50EMASMARegion and not PriceIn50EMASMARegion[1]
+
+// alertcondition(PriceEnters50EMASMARegion,                                         title='Alert - Price Enters 50 EMA/SMA Zone',         message='Price Enters 50 EMA/SMA Zone - MarketVision A')
+
+
+// PriceIn100EMASMARegion     = ((ema(close, 100) > sma(close, 200)) and (close >= sma(close, 100)) and (close <= ema(close, 100))) or ((ema(close, 100) < sma(close, 100)) and (close <= sma(close, 100)) and (close >= ema(close, 100)))  ? 1 : 0
+// PriceEnters100EMASMARegion = PriceIn100EMASMARegion and not PriceIn100EMASMARegion[1]
+
+// alertcondition(PriceEnters100EMASMARegion,                                        title='Alert - Price Enters 100 EMA/SMA Zone',        message='Price Enters 100 EMA/SMA Zone - MarketVision A')
+
+
+PriceIn200EMASMARegion     = ((ema(close, 200) > sma(close, 200)) and (close >= sma(close, 200)) and (close <= ema(close, 200))) or ((ema(close, 200) < sma(close, 200)) and (close <= sma(close, 200)) and (close >= ema(close, 200)))  ? 1 : 0
+PriceEnters200EMASMARegion = PriceIn200EMASMARegion and not PriceIn200EMASMARegion[1]
+
+alertcondition(PriceEnters200EMASMARegion,                                        title='Alert - Price Enters 200 EMA/SMA Zone',        message='Price Enters 200 EMA/SMA Zone - MarketVision A')
+
+
+// alertcondition(PriceEnters15EMA20SMARegion or PriceEnters50EMASMARegion or PriceEnters100EMASMARegion or PriceEnters200EMASMARegion,    title='Alert - Price Enters Any EMA/SMA Zone',        message='Price Enters Any EMA/SMA Zone - MarketVision A')
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Signals
+
+
+ApplyTrendFilterSD       = input(true,  "Wave Trend - Apply Trend Filter to Small Diamonds",  group = "Signals - Other Parameters")
+ApplyTrendFilterBD       = input(true,  "Wave Trend - Apply Trend Filter to Big Diamonds",    group = "Signals - Other Parameters")
+MCDiamondsIn             = input(false, "Wave Trend - Show Small Diamonds With Big Diamonds", group = "Signals - Other Parameters")
+// MCDBTFilter              = input(false, "Wave Trend - Apply T Line Filter to Blue Triangles", group = "Signals - Other Parameters")
+
+
+// CALCULATE INDICATORS 
+
+// RSI
+
+YellowXRSI   = rsi(close, 14)
+
+// Wave Trend
+
+ap           = hlc3  // input(hlc3, "Wave Trend - Source")
+
+n1           = input(9,    "Channel Length",                group = "Wave Trend Parameters")
+n2           = input(12,   "Average Length",                group = "Wave Trend Parameters")
+WTOBOSIn     = input(60,   "Over Bought / Over Sold + / -", group = "Wave Trend Parameters", tooltip = "Threshold for Yellow X's")
+// WTVOBVOSIn   = input(60,   "Wave Trend - Very Very Over Bought / Over Sold + / -")
+
+WTOBLevel    =     WTOBOSIn
+WTOSLevel    = 0 - WTOBOSIn
+// WTVOBLevel   =     WTVOBVOSIn
+// WTVOSLevel   = 0 - WTVOBVOSIn
+
+
+
+esa          = ema(ap, n1)
+de           = ema(abs(ap - esa), n1)
+ci           = (ap - esa) / (0.015 * de)
+tci          = ema(ci, n2)
+wt1          = tci
+wt2          = sma(wt1, 3)
+
+vwap_area    = wt1 - wt2
+
+// WaveTrend Conditions
+WTCross      = cross(wt1, wt2)
+WTCrossUp    = wt2 - wt1 <= 0
+WTCrossDown  = wt2 - wt1 >= 0
+WTOverSold   = wt2 <= WTOSLevel
+WTOverBought = wt2 >= WTOBLevel
+
+
+TrendFilterPlus  = (ema(close,15) > ema(close,20)) and (ema(close,20) > ema(close,30)) and (ema(close,30) > ema(close,40)) and (ema(close,40) > ema(close,50)) ? 1 : 0 
+
+TrendFilterMinus = (ema(close,15) < ema(close,20)) and (ema(close,20) < ema(close,30)) and (ema(close,30) < ema(close,40)) and (ema(close,40) < ema(close,50)) ? 1 : 0 
+
+
+// Signals
+
+BTFast                     = variant(MACrossMAType,  ma_src, 11)                                                        //ema(close, 11) // Blue Triangle Filter EMAs
+BTSlow                     = variant(MACrossMAType,  ma_src, 15)                                                        //ema(close, 15) // Blue Triangle Filter EMAs
+
+GreenCross5c11             = crossover( variant(MACrossMAType,  ma_src, 5), variant(MACrossMAType,  ma_src, 11))        //ema(close, 5),  ema(close, 11))
+RedCross5c11               = crossunder(variant(MACrossMAType,  ma_src, 5), variant(MACrossMAType,  ma_src, 11))        //ema(close, 5),  ema(close, 11))
+
+GreenCross                 = crossover( variant(MACrossMAType,  ma_src, 3), variant(MACrossMAType,  ma_src, 8))         //ema(close,3),   ema(close,8))
+RedCross                   = crossunder(variant(MACrossMAType,  ma_src, 3), variant(MACrossMAType,  ma_src, 8))         //ema(close,3),   ema(close,8))
+
+LongEma                    = crossover( variant(MACrossMAType,  ma_src, 11), variant(MACrossMAType,  ma_src, 36))       //ema(close, 11), ema(close, 36))
+ShortEma                   = crossunder(variant(MACrossMAType,  ma_src, 11), variant(MACrossMAType,  ma_src, 36))       //ema(close, 11), ema(close, 36))
+
+
+SmallGreenDiamond          = ApplyTrendFilterSD? TrendFilterPlus  and WTCross           and WTCrossUp    : WTCross and WTCrossUp 
+SmallRedDiamond            = ApplyTrendFilterSD? TrendFilterMinus and WTCross           and WTCrossDown  : WTCross and WTCrossDown
+BigGreenDiamond            = ApplyTrendFilterBD? TrendFilterPlus  and SmallGreenDiamond and GreenCross   : WTCross and WTCrossUp   and GreenCross
+BigRedDiamond              = ApplyTrendFilterBD? TrendFilterMinus and SmallRedDiamond   and RedCross     : WTCross and WTCrossDown and RedCross     // bloodDiamond
+
+YellowCrossUp              = WTCross and WTCrossUp      and (YellowXRSI >= 70) and WTOverBought
+YellowCrossDown            = WTCross and WTCrossDown    and (YellowXRSI <= 30) and WTOverSold
+
+BlueTriangleUp             = crossover( BTFast, BTSlow)                                                               
+BlueTriangleDown           = crossunder(BTFast, BTSlow)                                                                
+
+MCDiamondsPos              = SmallGreenDiamond and not BigGreenDiamond? 1 : MCDiamondsIn and SmallGreenDiamond and BigGreenDiamond ? 1 : 0
+MCDiamondsNeg              = SmallRedDiamond   and not BigRedDiamond?   1 : MCDiamondsIn and SmallRedDiamond   and BigRedDiamond   ? 1 : 0 
+
+
+// Plots - MarketVision Signals
+
+plotshape(ShowSignals and Show511EMACross      and GreenCross5c11?      GreenCross5c11    : na, style=shape.xcross,       color=color.green,   transp=EMACross511Transp,  location=location.belowbar, size=size.tiny,  show_last=ShowRecentSignalsIn, title="Green X - 5 / 11 MA Cross Over")
+plotshape(ShowSignals and Show511EMACross      and RedCross5c11?        RedCross5c11      : na, style=shape.xcross,       color=color.red,     transp=EMACross511Transp,  location=location.abovebar, size=size.tiny,  show_last=ShowRecentSignalsIn, title="Red X - 5 / 11 MA Cross Under")
+
+plotshape(ShowSignals and Show815EMACross      and BlueTriangleUp?      BlueTriangleUp    : na, style=shape.triangleup,   color=color.blue,    transp=EMACross1115Transp, location=location.abovebar, size=size.small, show_last=ShowRecentSignalsIn, title="Blue Triangle Up - 11 / 15 MA Cross Over")
+plotshape(ShowSignals and Show815EMACross      and BlueTriangleDown?    BlueTriangleDown  : na, style=shape.triangledown, color=color.blue,    transp=EMACross1115Transp, location=location.belowbar, size=size.small, show_last=ShowRecentSignalsIn, title="Blue Triangle Down - 11 / 15 MA Cross Under")
+
+plotshape(ShowSignals and Show1136EMACross     and LongEma?             LongEma           : na, style=shape.circle,       color=color.green,   transp=EMACross1136Transp, location=location.abovebar, size=size.tiny,  show_last=ShowRecentSignalsIn, title="Medium Green Dot ● - 11 / 36 MA Cross Over - Caution Can Sometimes Signal Exhaustion")
+plotshape(ShowSignals and Show1136EMACross     and ShortEma?            ShortEma          : na, style=shape.circle,       color=color.red,     transp=EMACross1136Transp, location=location.belowbar, size=size.tiny,  show_last=ShowRecentSignalsIn, title="Medium Red Dot ● - 11 / 36 MA Cross Under - Caution Can Sometimes Signal Exhaustion")
+
+plotshape(ShowSignals and ShowWaveTrendSignals and MCDiamondsPos?       SmallGreenDiamond : na, style=shape.diamond,      color=color.green,   transp=MVTransp,           location=location.belowbar, size=size.tiny,  show_last=ShowRecentSignalsIn, title="Small Green Diamond ◇ - Wave Trend Cross Over")
+plotshape(ShowSignals and ShowWaveTrendSignals and MCDiamondsNeg?       SmallRedDiamond   : na, style=shape.diamond,      color=#ff0000,       transp=MVTransp,           location=location.abovebar, size=size.tiny,  show_last=ShowRecentSignalsIn, title="Small Red Diamond ◇ - Wave Trend Cross Under")
+
+plotshape(ShowSignals and ShowWaveTrendSignals and BigGreenDiamond?     BigGreenDiamond   : na, style=shape.diamond,      color=color.green,   transp=MVTransp,           location=location.belowbar, size=size.small, show_last=ShowRecentSignalsIn, title="Big Green Diamond ◇ - 3 / 8 MA Cross Over and Wave Trend Has Crossed Up")
+plotshape(ShowSignals and ShowWaveTrendSignals and BigRedDiamond?       BigRedDiamond     : na, style=shape.diamond,      color=#ff0000,       transp=MVTransp,           location=location.abovebar, size=size.small, show_last=ShowRecentSignalsIn, title="Big Red / Blood Diamond ◇ - 3 / 8 MA Cross Under and Wave Trend Has Crossed Down")
+
+plotshape(ShowSignals and ShowWaveTrendSignals and YellowCrossUp?       YellowCrossUp     : na, style=shape.xcross,       color=#FFDF00,       transp=0,                  location=location.abovebar, size=size.small, show_last=ShowRecentSignalsIn, title="Yellow X Up - Wave Trend Has Crossed Up In Over Bought Region")
+plotshape(ShowSignals and ShowWaveTrendSignals and YellowCrossDown?     YellowCrossDown   : na, style=shape.xcross,       color=#FFDF00,       transp=0,                  location=location.belowbar, size=size.small, show_last=ShowRecentSignalsIn, title="Yellow X Down - Wave Trend Has Crossed Down In Over Sold Region")
+ 
+
+// Alerts  - MarketVision
+
+// alertcondition(SmallGreenDiamond,                                                 title='Alert - Diamonds - Green Diamond',               message='Green Diamond - MarketVision A')
+// alertcondition(SmallRedDiamond,                                                   title='Alert - Diamonds - Red Diamond',                 message='Red Diamond - MarketVision A')
+alertcondition(SmallGreenDiamond or SmallRedDiamond,                              title='Alert - Diamonds - Any Diamond',                 message='Any Diamond - MarketVision A')
+
+// alertcondition(BigRedDiamond,                                                     title='Alert - Diamond - Big Red Blood Diamond',        message='Big Red Blood Diamond - MarketVision A')
+// alertcondition(BigGreenDiamond,                                                   title='Alert - Diamond - Big Green Diamond',            message='Big Green Diamond - MarketVision A')
+alertcondition(BigRedDiamond or BigGreenDiamond,                                  title='Alert - Diamonds - Any Big Diamond',             message='Any Big Diamond - MarketVision A')
+
+// alertcondition(YellowCrossUp,                                                     title='Alert - Yellow Cross 🡑',                        message='Yellow Cross Up - MarketVision A')
+// alertcondition(YellowCrossDown,                                                   title='Alert - Yellow Cross 🡓',                        message='Yellow Cross Down - MarketVision A')
+alertcondition(YellowCrossUp or YellowCrossDown,                                  title='Alert - Yellow X ↕',                             message='Yellow X Up or Down - MarketVision A')
+
+// alertcondition(GreenCross5c11,                                                    title='Alert - MA Cross - Small Green X',               message='Small Green X - 5 / 11 MA Cross Over - MarketVision A')
+// alertcondition(RedCross5c11,                                                      title='Alert - MA Cross - Small Red X',                 message='Small Red X - 5 / 11 MA Cross Under - MarketVision A')
+alertcondition(GreenCross5c11 or RedCross5c11,                                    title='Alert - MA Cross - 5 / 11',                      message='5 / 11 MA Cross - Small Green or Red X - MarketVision A')
+
+// alertcondition(BlueTriangleUp,                                                    title='Alert - MA Cross - Blue Triangle 🡑',            message='Blue Triangle Up - 11 / 15 MA Cross Over - MarketVision A')
+// alertcondition(BlueTriangleDown,                                                  title='Alert - MA Cross - Blue Triangle 🡓',            message='Blue Triangle Down - 11 / 15 MA Cross Under - MarketVision A')
+alertcondition(BlueTriangleUp or BlueTriangleDown,                                title='Alert - MA Cross - 11 / 15',                     message='11 / 15 MA Cross - Blue Triangle Up or Down - MarketVision A')
+
+// alertcondition(LongEma,                                                           title='Alert - MA Cross - Green Dot',                   message='Green Dot - 11 / 36 MA Cross - MarketVision A')
+// alertcondition(ShortEma,                                                          title='Alert - MA Cross - Red Dot',                     message='Red Dot - 11 / 36 MA Cross Under - MarketVision A')
+alertcondition(LongEma or ShortEma,                                               title='Alert - MA Cross - 11 / 36',                     message='11 / 36 MA Cross - Medium Green or Red Dot - MarketVision A')
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Engulfing Bars by rmunoz
+
+
+openBarPrevious  = open[1]
+closeBarPrevious = close[1]
+openBarCurrent   = open
+closeBarCurrent  = close
+
+//If current bar open is less than equal to the previous bar close AND current bar open is less than previous bar open AND current bar close is greater than previous bar open THEN True
+bullishEngulfing = openBarCurrent <= closeBarPrevious and openBarCurrent < openBarPrevious and 
+   closeBarCurrent > openBarPrevious
+//If current bar open is greater than equal to previous bar close AND current bar open is greater than previous bar open AND current bar close is less than previous bar open THEN True
+bearishEngulfing = openBarCurrent >= closeBarPrevious and openBarCurrent > openBarPrevious and 
+   closeBarCurrent < openBarPrevious
+
+//bullishEngulfing/bearishEngulfing return a value of 1 or 0; if 1 then plot on chart, if 0 then don't plot
+
+// Plots - Engulfing Bars
+
+// 
+// "E"
+plotshape(bullishEngulfing and ShowSignals and ShowEngulfingLabels ? close : na, 'Engulfing Candle - Bullish - Label', text='E', style=shape.labelup,   location=location.belowbar, color=color.new(color.green, 100), textcolor=color.green, transp=EngulfingTransp, offset=0, show_last=ShowRecentSignalsIn)
+plotshape(bearishEngulfing and ShowSignals and ShowEngulfingLabels ? close : na, 'Engulfing Candle - Bearish - Label', text='E', style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 100),   textcolor=color.red,   transp=EngulfingTransp, offset=0, show_last=ShowRecentSignalsIn)
+
+// // Triangles
+// plotshape(bullishEngulfing and ShowSignals and ShowEngulfingLabels ? close : na,'Engulfing Candle - Bullish - Triangle', style=shape.triangleup,   location=location.belowbar, color=color.green, size=size.tiny, transp=EngulfingTransp, offset=0, show_last=ShowRecentSignalsIn)
+// plotshape(bearishEngulfing and ShowSignals and ShowEngulfingLabels ? close : na,'Engulfing Candle - Bearish - Triangle', style=shape.triangledown, location=location.abovebar, color=color.red,   size=size.tiny, transp=EngulfingTransp, offset=0, show_last=ShowRecentSignalsIn)
+
+// Alerts - Engulfing Bars
+
+// alertcondition(bullishEngulfing, title="Alert - Bullish Engulfing Candle", message="[CurrencyPair] [TimeFrame], Bullish Engulfing Candle - TCG Price Shear Plus")
+// alertcondition(bearishEngulfing, title="Alert - Bearish Engulfing Candle", message="[CurrencyPair] [TimeFrame], Bearish Engulfing Candle - TCG Price Shear Plus")
+
+alertcondition(bullishEngulfing or bearishEngulfing, title="Alert - Engulfing Candle", message="Engulfing Candle - MarketVision A")
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// 3 Line Strike
+
+
+Bullish3LineStrike = close[3] < open[3] and close[2] < open[2] and close[1] < open[1] and close > open[1]
+Bearish3LineStrike = close[3] > open[3] and close[2] > open[2] and close[1] > open[1] and close < open[1]
+
+// plotshape(Bullish3LineStrike and Show3LineStrikeTriangles, 'Triangle - Bullish 3 Line Strike', style=shape.triangleup,   location=location.belowbar, color=color.green, size=size.small, show_last=ShowRecent3LineStrikeIn)
+// plotshape(Bearish3LineStrike and Show3LineStrikeTriangles, 'Triangle - Bearish 3 Line Strike', style=shape.triangledown, location=location.abovebar, color=color.red,   size=size.small, show_last=ShowRecent3LineStrikeIn)
+
+
+plotshape(ShowSignals and Bullish3LineStrike and Show3LineStrikeLabels ? Bullish3LineStrike : na, title='3 Line Strike - Bullish - Label', location=location.belowbar, style=shape.triangleup,   text="3",  color=color.new(color.green, 100), size=size.small, textcolor=color.green, transp=ThreeLineStrikeTransp, offset=0, show_last=ShowRecentSignalsIn)
+plotshape(ShowSignals and Bearish3LineStrike and Show3LineStrikeLabels ? Bearish3LineStrike : na, title='3 Line Strike - Bearish - Label', location=location.abovebar, style=shape.triangledown, text="3",  color=color.new(color.red,   100), size=size.small, textcolor=color.red,   transp=ThreeLineStrikeTransp, offset=0, show_last=ShowRecentSignalsIn)
+
+
+// Alerts - Line Strike
+
+// alertcondition(Bullish3LineStrike, title="Alert - Bullish 3 Line Strike", message="[CurrencyPair] [TimeFrame], Bullish 3 Line Strike - TCG Price Shear Plus")
+// alertcondition(Bearish3LineStrike, title="Alert - Bearish 3 Line Strike", message="[CurrencyPair] [TimeFrame], Bearish 3 Line Strike - TCG Price Shear Plus")
+
+alertcondition(Bullish3LineStrike or Bearish3LineStrike, title="Alert - 3 Line Strike", message="3 Line Strike - MarketVision A")
+
+ 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Leledc Exhaustion Bar by glaz
+
+
+maj_qual = 6  //input(6)
+maj_len = 30  //input(30)
+min_qual = 5  //input(5)
+min_len = 5  //input(5)
+
+lele(qual, len) =>
+    bindex = 0.0
+    bindex := nz(bindex[1], 0)
+    sindex = 0.0
+    sindex := nz(sindex[1], 0)
+    ret = 0
+    if close > close[4]
+        bindex := bindex + 1
+        bindex
+    if close < close[4]
+        sindex := sindex + 1
+        sindex
+    if bindex > qual and close < open and high >= highest(high, len)
+        bindex := 0
+        ret := -1
+        ret
+    if sindex > qual and close > open and low <= lowest(low, len)
+        sindex := 0
+        ret := 1
+        ret
+    return = ret
+    return
+
+major = lele(maj_qual, maj_len)
+minor = lele(min_qual, min_len)
+
+MajorExaustionHigh = major == -1 ? 1 : 0
+MajorExaustionLow  = major ==  1 ? 1 : 0
+
+// Plots - Leledc Exhaustion
+
+plotchar(ShowLeledc and MajorExaustionHigh ? high : na, title="Leledc Exhaustion High", char='o', location=location.absolute, color=color.red,  transp=LeledcTransp, size=size.small, show_last=ShowRecentSignalsIn)
+plotchar(ShowLeledc and MajorExaustionLow ?  low  : na, title="Leledc Exhaustion Low",  char='o', location=location.absolute, color=color.lime, transp=LeledcTransp, size=size.small, show_last=ShowRecentSignalsIn)
+
+// Alerts - Leledc Exhaustion
+
+// alertcondition(MajorExaustionHigh, title='Alert - Leledc Exhaustion High', message='Leledc Exhaustion High - TCG Price Shear Plus')
+// alertcondition(MajorExaustionLow, title='Alert - Leledc Exhaustion Low', message='Leledc Exhaustion Low - TCG Price Shear Plus')
+
+alertcondition(MajorExaustionHigh or MajorExaustionLow, title='Alert - Leledc Exhaustion', message='Leledc Exhaustion - MarketVision A')
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Trend Meter
+
+
+MACDfastMA          = 8
+MACDslowMA          = 21
+MACDsignalSmooth    = 5
+
+MACDLine            = ema(close, MACDfastMA) - ema(close, MACDslowMA)
+SignalLine          = ema(MACDLine, MACDsignalSmooth)
+MACDHistogram       = MACDLine - SignalLine
+
+MACDHistogramCross  = MACDHistogram > 0 ?               1 : 0
+
+TM1 = MACDHistogramCross
+TM2 = rsi(close, 13) > 50 ?                             1 : 0
+TM3 = rsi(close,  5) > 50 ?                             1 : 0
+
+
+TMAllPositive =      TM1  and      TM2  and      TM3 ?  1 : 0
+TMAllNegative = (not TM1) and (not TM2) and (not TM3) ? 1 : 0
+
+TMAllPositiveSetup = TMAllPositive and (not TMAllPositive[1]) ? 1 : 0
+TMAllNegativeSetup = TMAllNegative and (not TMAllNegative[1]) ? 1 : 0
+
+plotshape(ShowSignals and ShowTrendMeterSignals and TMAllPositiveSetup? TMAllPositiveSetup : na, style=shape.triangleup,   color=color.green, transp=TMTransp, location=location.belowbar, size=size.tiny, show_last=ShowRecentSignalsIn, title="Trend Meter Positive Signal")
+plotshape(ShowSignals and ShowTrendMeterSignals and TMAllNegativeSetup? TMAllNegativeSetup : na, style=shape.triangledown, color=color.red,   transp=TMTransp, location=location.abovebar, size=size.tiny, show_last=ShowRecentSignalsIn, title="Trend Meter Positive Signal")
+
+
+// alertcondition(TMAllPositiveSetup,                                                title='Alert - Trend Meter Signal 🡑',              message='Trend Meter Pos Signal 🡑 - MarketVision A')
+// alertcondition(TMAllNegativeSetup,                                                title='Alert - Trend Meter Signal 🡓',              message='Trend Meter Neg Signal 🡓 - MarketVision A')
+alertcondition(TMAllPositiveSetup or TMAllNegativeSetup,                          title='Alert - Trend Meter Signal ↕',               message='Trend Meter Any Signal ↕ - MarketVision A')
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Nexus 
+
+Smoothing        = 7     
+MAType           = "TMA"      
+MALength         = 3      
+RSILength        = 13      
+RSISigLength     = 21      
+CandleTypeInputA = "Heikin Ashi"   
+CandleTypeInputB = "Standard"                
+CandleTypeInputC = "Standard"                  
+
+
+MAFilter2Type    = "EMA"  // input(              title ='Nexus - MA Type - Filter Threshold - Filtered 0 Line Crosses',   defval="EMA", options=["EMA","SMA"])
+MAFilter2Length  = 15     // input(15,           title ='Nexus - MA Length - Filter Threshold - Filtered 0 Line Crosses', minval=1)
+
+
+MAFilter2=   if MAFilter2Type=="SMA"
+    sma(close,MAFilter2Length)
+else
+    ema(close,MAFilter2Length)
+
+
+HA    = heikinashi(syminfo.tickerid)
+NonHA = tickerid(syminfo.prefix, syminfo.ticker)
+
+
+AOpen  = CandleTypeInputA=="Heikin Ashi" ? security(HA, timeframe.period, open)  : CandleTypeInputA=="Standard" ? security(NonHA, timeframe.period, open)  : security(syminfo.tickerid, timeframe.period, open)
+AClose = CandleTypeInputA=="Heikin Ashi" ? security(HA, timeframe.period, close) : CandleTypeInputA=="Standard" ? security(NonHA, timeframe.period, close) : security(syminfo.tickerid, timeframe.period, close)
+AHigh  = CandleTypeInputA=="Heikin Ashi" ? security(HA, timeframe.period, high)  : CandleTypeInputA=="Standard" ? security(NonHA, timeframe.period, high)  : security(syminfo.tickerid, timeframe.period, high)
+ALow   = CandleTypeInputA=="Heikin Ashi" ? security(HA, timeframe.period, low)   : CandleTypeInputA=="Standard" ? security(NonHA, timeframe.period, low)   : security(syminfo.tickerid, timeframe.period, low)
+
+BOpen  = CandleTypeInputB=="Heikin Ashi" ? security(HA, timeframe.period, open)  : CandleTypeInputB=="Standard" ? security(NonHA, timeframe.period, open)  : security(syminfo.tickerid, timeframe.period, open)
+BClose = CandleTypeInputB=="Heikin Ashi" ? security(HA, timeframe.period, close) : CandleTypeInputB=="Standard" ? security(NonHA, timeframe.period, close) : security(syminfo.tickerid, timeframe.period, close)
+BHigh  = CandleTypeInputB=="Heikin Ashi" ? security(HA, timeframe.period, high)  : CandleTypeInputB=="Standard" ? security(NonHA, timeframe.period, high)  : security(syminfo.tickerid, timeframe.period, high)
+BLow   = CandleTypeInputB=="Heikin Ashi" ? security(HA, timeframe.period, low)   : CandleTypeInputB=="Standard" ? security(NonHA, timeframe.period, low)   : security(syminfo.tickerid, timeframe.period, low)
+
+
+AHP         = sum(AClose, Smoothing) - sum(AOpen, Smoothing)
+ASignalLine = variant(MAType, AHP, MALength) 
+AA          = AHP    
+AB          = ASignalLine  
+BHP         = sum(BClose, Smoothing) - sum(BOpen, Smoothing)
+BSignalLine = variant(MAType, BHP, MALength) 
+BA          = BHP    
+BB          = BSignalLine 
+
+Aabove0     = AA > 0 ?         1 : 0              
+AaboveB     = AA > AB ?        1 : 0
+
+
+RSI1              = rsi(security(NonHA, timeframe.period, close), RSILength)
+LinReg            = variant_linear_regression_sma(RSI1,RSISigLength)
+RSISigDirection   = LinReg > LinReg[1] ? 1 : 0
+LineColor         = RSI1 > LinReg ? 1 : 0 
+
+BlueDiamondPos    =     LineColor and     RSISigDirection and crossover(BA, 0 )  and BA > BB and close > MAFilter2
+BlueDiamondNeg    = not LineColor and not RSISigDirection and crossunder(BA, 0 ) and BA < BB and close < MAFilter2
+
+
+plotshape(ShowSignals and ShowNexus and BlueDiamondPos? BlueDiamondPos   : na, style=shape.diamond,      color=color.blue,    transp=SignalTransp, location=location.belowbar, size=size.tiny, show_last=ShowRecentSignalsIn,  title="Positive Nexus Signal - Nexus Crossing Over Zero Line")    // title="Blue Positive Diamond - HP Crossing Over Zero Line - Filtered")
+plotshape(ShowSignals and ShowNexus and BlueDiamondNeg? BlueDiamondNeg   : na, style=shape.diamond,      color=color.blue,    transp=SignalTransp, location=location.abovebar, size=size.tiny, show_last=ShowRecentSignalsIn,  title="Negative Nexus Signal - Nexus Crossing Under Zero Line")    // title="Blue Negative Diamond - HP Crossing Under Zero Line - Filtered")
+
+
+alertcondition(BlueDiamondPos or BlueDiamondNeg,            title='Alert - Nexus - Small Blue Diamond ↕',            message='Nexus Signal ↕ - MarketVision A')
+

@@ -1,0 +1,110 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © ugurvu
+
+//@version=4
+study("Humble Bars Possible Correction Zones", overlay=true)
+period = input(title="Period", type=input.integer, defval=17, maxval=60, minval=2)
+modhl = input(title="Mode With Wicks", type=input.bool, defval=true)
+use_rma = input(title="Use RMA", type=input.bool, defval=true)
+barrange=abs(open-close)
+lin_reg = input(title="Lin Reg", type=input.bool, defval=true)
+signal_length = input(title="linreg Smoothing", type=input.integer, minval = 1, defval = 10)
+smaperiod = input(title="SMA Period", type=input.integer, defval=10, minval=2)
+smooth = input(1, minval=1, title="Smooth")
+
+
+//////////////////////////////////////////////////////////////////////
+
+len = input(10, minval=1, title="Length OL")
+smooth_ol = input(10, minval=1, title="Smooth OL")
+matype = input(title="MA Type", defval="SMA", options=["RMA", "SMA", "EMA", "WMA"])
+
+//////////////////////////////////////////////////////////////////////
+
+sma1 = 0.0
+sma2 = 0.0
+
+if matype == "RMA"
+    sma1 := rma(close, len)
+    sma2 := rma(hlc3, len)
+    
+if matype == "SMA"
+    sma1 := sma(close, len)
+    sma2 := sma(hlc3, len)
+
+if matype == "EMA"
+    sma1 := ema(close, len)
+    sma2 := ema(hlc3, len)
+
+if matype == "WMA"
+    sma1 := wma(close, len)
+    sma2 := wma(hlc3, len)
+				
+oneline = sma1 > sma2 ? sma1 : sma2
+linecolor = color.white
+
+if (sma1 > sma2  and oneline > oneline[smooth_ol])
+    linecolor := color.green
+    
+if (sma1 < sma2  and oneline < oneline[smooth_ol])
+    linecolor := color.red    
+
+
+//////////////////////////////////////////////////////////////////////    
+
+plot(oneline, color= linecolor, linewidth=3)
+///////////////////
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////
+
+if modhl==true
+    barrange :=high-low
+
+isbarup=open > close
+isbardown=open < close
+isbardoji=open==close
+bup = 0.0
+bdown=0.0
+
+if (isbarup)
+    bup := barrange
+    bdown :=0
+    
+if (isbardown)
+    bdown := barrange
+    bup:=0
+    
+if (isbardoji)
+    bdown := 0
+    bup:=0    
+
+sdown = use_rma ? rma(bdown, period) : sma(bdown, period)
+sup = use_rma ? rma(bup, period) : sma(bup, period)
+
+mavi = lin_reg ? linreg(sdown, signal_length,0) : sdown
+kirmizi = lin_reg ? linreg(sup, signal_length,0) : sup
+smamavi = sma(sdown, smaperiod)
+smakirmizi = sma(sup, smaperiod)
+
+macd = mavi-kirmizi
+macd2 = kirmizi - mavi
+
+// plot(mavi, title="fsdown", color=col_mavi, linewidth=1)
+// plot(kirmizi,  title="fsup", color=col_kirmizi, linewidth=1)
+
+// plot(macd,  title="macd", color=col_macd, linewidth=3)
+// plot(macd2,  title="macd2", color=col_macd2, linewidth=2)
+
+// hline(0.0)
+
+plotshape(crossunder(macd2, mavi), style=shape.triangleup, location= location.belowbar, size=size.small, color=color.blue)
+plotshape(crossunder(macd, kirmizi), style=shape.triangledown, location= location.abovebar, size=size.small, color=color.red)
+
+//plot(possibletop, color=color.red, linewidth=3)
+//plot(possiblebottom, color=color.blue, linewidth=3)
+
+plotchar(macd2 > mavi, char= '—', location= location.belowbar, size=size.small, color=color.blue, transp= 50)
+plotchar(macd > kirmizi, char= '—', location= location.abovebar, size=size.small, color=color.red, transp= 50)
+
+
+

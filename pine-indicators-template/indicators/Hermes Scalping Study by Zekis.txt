@@ -1,0 +1,25 @@
+study(title="Hermes Scalping Study by Zekis", overlay=true)
+length = input(30, minval=1)
+Value = input(30, minval=0)
+highsma = sma(high, length)
+lowsma = sma(low, length)
+swing = iff(close > highsma[Value], 1, iff(close < lowsma[Value], -1, 0))
+mah = highest(high, length)
+mal = lowest(low, length)
+stop = iff(swing==1, mal, iff(swing==-1, mah, stop[1]))
+linecolor = iff(stop < low, green, red)
+plot(stop, style=line, linewidth=2, color=linecolor)
+
+len1 = input(1, "Base Length")
+src = input(close, "Source")
+
+sma1 = sma(src, len1)
+
+longcondition = crossover(sma1,stop)
+shortcondition = crossover(stop,sma1)
+
+plotshape(longcondition, style = shape.triangleup, color = green, location = location.belowbar, text = "Long", size = size.small)
+plotshape(shortcondition, style = shape.triangledown, color = red, location = location.abovebar, text = "Short", size = size.small)
+
+alertcondition(longcondition, "Long", "Long")
+alertcondition(shortcondition, "Short", "Short")

@@ -1,0 +1,96 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © earnSmartAlgorithm
+
+// MA   - Moving Average
+// MATR - Moving Average less Average True Range
+// ChEx - Chandelier Exit
+
+//@version=4
+study("Moving Average | Moving Average less Average True Range | Chandelier Exit", shorttitle = "MA | MATR | ChEx", overlay = true)
+
+maType  = input(title = "MA | Type",                  type = input.string,  defval = "EMA", options = ["EMA", "HMA", "RMA", "SMA", "WMA"])
+Len1    = input(title = "MA | Period 1",              type = input.integer, defval = 20)
+Len2    = input(title = "MA | Period 2",              type = input.integer, defval = 50)
+Len3    = input(title = "MA | Period 3",              type = input.integer, defval = 150)
+Len4    = input(title = "MA | Period 4",              type = input.integer, defval = 200)
+LenW    = input(title = "MA | Period Wk",             type = input.integer, defval = 13)
+
+slType  = input(title = "MATR | Position",            type = input.string,  defval = "Long", options = ["Long", "Short"])
+LenS    = input(title = "MATR | Period",              type = input.integer, defval = 20)
+LenSa   = input(title = "MATR | ATR Period",          type = input.integer, defval = 10)
+MultS   = input(title = "MATR | ATR Multiplier",      type = input.float,   defval = 1.0)
+LenC    = input(title = "ChEx | Period",              type = input.integer, defval = 20)
+LenCa   = input(title = "ChEx | ATR Period",          type = input.integer, defval = 10)
+MultC   = input(title = "ChEx | ATR Multiplier",      type = input.float,   defval = 4.0)
+ChType  = input(title = "ChEx | Signal Switch Using", type = input.string,  defval = "Close", options = ["Close", "Midpoint", "High Low Close-Avg", "Open High Low Close-Avg"])
+
+
+maX(x, T, N) => 
+    maX = 0.0
+    if T == "EMA"
+        maX := ema(x, N)
+    if T == "HMA"
+        maX := hma(x, N)
+    if T == "RMA"
+        maX := rma(x, N)
+    if T == "SMA"
+        maX := sma(x, N)
+    if T == "WMA"
+        maX := wma(x, N)
+    maX
+
+
+// Moving Average
+ma1 = maX(close, maType, Len1)
+ma2 = maX(close, maType, Len2)
+ma3 = maX(close, maType, Len3)
+ma4 = maX(close, maType, Len4)
+maW = security(syminfo.tickerid, "W", maX(close, maType, LenW), barmerge.lookahead_on)
+
+
+// Moving Average less Average True Range - Initial Stoploss
+at   = atr(LenSa)
+maS1 = maX(close, maType, LenS)
+maSp = slType == "Long" ? maS1 - MultS * at : slType == "Short" ? maS1 + MultS * at : na
+
+
+//Chandelier Exit - Trailing Stoploss
+atC = atr(LenCa)
+sEx = lowest(low,   LenC) + MultC * atC
+lEx = highest(high, LenC) - MultC * atC
+
+sSAR = 0.0
+lSAR = 0.0
+refS = ChType == "Close" ? close : 
+  ChType == "Midpoint" ? hl2 : 
+  ChType == "High Low Close-Avg" ? hlc3 : 
+  ChType == "Open High Low Close-Avg" ? ohlc4 : na
+sSAR := na(sSAR[1]) ? sEx : iff(refS > sSAR[1], sEx, min(sEx, sSAR[1]))
+lSAR := na(lSAR[1]) ? lEx : iff(refS < lSAR[1], lEx, max(lEx, lSAR[1]))
+
+lSwitch = iff(refS >= sSAR[1] and refS[1] < sSAR[1], 1, 0)
+sSwitch = iff(refS <= lSAR[1] and refS[1] > lSAR[1], 1, 0)
+
+direction = 0
+direction := iff(na(direction[1]), 0,
+  iff (direction[1] <= 0 and lSwitch,  1, 
+  iff (direction[1] >= 0 and sSwitch, -1, direction[1])))
+
+ChEx = direction > 0 ? lSAR : sSAR
+
+
+// Charting
+plot(ma1, title = "MA 1",  color = color.new(#388e3c, 0), linewidth = 2)
+plot(ma2, title = "MA 2",  color = color.new(#b71c1c, 0), linewidth = 2)
+plot(ma3, title = "MA 3",  color = color.new(#f57c00, 0), linewidth = 2, display = display.none)
+plot(ma4, title = "MA 4",  color = color.new(#0d47a1, 0), linewidth = 2)
+plot(maW, title = "MA Wk", color = color.new(color.aqua, 0), linewidth = 3)
+
+s1 = plot(maS1, title = "MATR - MA", color = color.new(#ffffff, 100), linewidth = 2, display = display.none)
+sp = plot(maSp, title = "MATR - Initial Stoploss", color = color.new(#388e3c, 85), linewidth = 2)
+
+plot(ChEx, title = "Chandelier Exit", color = direction > 0 ? color.aqua : color.fuchsia, linewidth = 2)
+
+fill(s1, sp, color = color.new(#388e3c, 80))
+
+

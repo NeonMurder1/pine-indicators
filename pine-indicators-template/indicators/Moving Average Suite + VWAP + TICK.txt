@@ -1,0 +1,179 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © platsn
+//
+// This indicator combines some of the commonly used moving averages, VWAP, and TICK sentiment, all of which are useful for all types of trading
+// By default, this indicator includes:
+//      - 21/50/100/200 period smoothed simple moving average
+//          - great for determining trends
+//          - also act as support / resistance line for price
+//      - 9 period exponential moving average
+//          - fast trend / direction indicator 
+//      - Volume Weighted Average Price
+//          - no explaination required
+//      - $TICK sentiment as background fill
+//          - overall market sentiment and direction
+//          - +/- 500 levels are colored green/red and are usually indication of institutional order flow --> critical for trading indexes such as SPY or QQQ
+//          - deep green/red background indicates +/-1000 on the $TICK, which are usually associated with overbought or oversold
+
+
+//@version=5
+indicator(title='Moving Average Suite + VWAP', shorttitle='MA Suite + VWAP', overlay=true, timeframe="", timeframe_gaps=true)
+
+//************************** Four Smoothed Moving Averages **********************
+
+h_ma1 = input.bool(title='Show MA 1', defval=true, group='Display options')
+len1 = input.int(21, minval=1, title="SMMA 1", group = "Smoothed MA Inputs")
+src1 = close
+smma1 = 0.0
+sma_1 = ta.sma(src1, len1)
+smma1 := na(smma1[1]) ? sma_1 : (smma1[1] * (len1 - 1) + src1) / len1
+plot(h_ma1 ? smma1 : na, color=color.new(color.white, 0), linewidth=2, title='21 SMMA')
+
+h_ma2 = input.bool(title='Show MA 2', defval=true, group='Display options')
+len2 = input.int(50, minval=1, title="SMMA 2", group = "Smoothed MA Inputs")
+src2 = close
+smma2 = 0.0
+sma_2 = ta.sma(src2, len2)
+smma2 := na(smma2[1]) ? sma_2 : (smma2[1] * (len2 - 1) + src2) / len2
+plot(h_ma2 ? smma2 : na, color=color.new(#6aff00, 0), linewidth=2, title='50 SMMA')
+
+h_ma3 = input.bool(title='Show MA 3', defval=false, group='Display options')
+len3 = input.int(100, minval=1, title="SMMA 3", group = "Smoothed MA Inputs")
+src3 = close
+smma3 = 0.0
+sma_3 = ta.sma(src3, len3)
+smma3 := na(smma3[1]) ? sma_3 : (smma3[1] * (len3 - 1) + src3) / len3
+sma3plot = plot(h_ma3 ? smma3 : na, color=color.new(color.yellow, 0), linewidth=2, title='100 SMMA')
+
+h_ma4 = input.bool(title='Show MA 4', defval=true, group='Display options')
+len4 = input.int(200, minval=1, title="SMMA 4", group = "Smoothed MA Inputs")
+src4 = close
+smma4 = 0.0
+sma_4 = ta.sma(src4, len4)
+smma4 := na(smma4[1]) ? sma_4 : (smma4[1] * (len4 - 1) + src4) / len4
+sma4plot = plot(h_ma4 ? smma4 : na, color=color.new(#ff0500, 0), linewidth=2, title='200 SMMA')
+
+//********************************* EMA **************************************
+
+h_ma5 = input.bool(title='Show EMA1', defval=true, group='Display options')
+len5 = input.int(9, minval=1, title="Fast EMA")
+src5 = input(close, title="Source")
+out1 = ta.ema(src5, len5)
+plot(h_ma5 ? out1 : na, title="EMA 1", color=color.blue, linewidth=2)
+
+h_ma6 = input.bool(title='Show EMA2', defval=true, group='Display options')
+len6 = input.int(21, minval=1, title="Slow EMA")
+src6 = input(close, title="Source")
+out2 = ta.ema(src6, len6)
+plot(h_ma6 ? out2 : na, title="EMA 2", color=color.orange, linewidth=2)
+
+
+// **************************** VWAP *****************************************
+// Copied from TradingView Built-in
+
+var cumVol = 0.
+cumVol += nz(volume)
+if barstate.islast and cumVol == 0
+    runtime.error("No volume is provided by the data vendor.")
+    
+computeVWAP(src, isNewPeriod, stDevMultiplier) =>
+	var float sumSrcVol = na
+	var float sumVol = na
+    var float sumSrcSrcVol = na
+
+	sumSrcVol := isNewPeriod ? src * volume : src * volume + sumSrcVol[1]
+	sumVol := isNewPeriod ? volume : volume + sumVol[1]
+	// sumSrcSrcVol calculates the dividend of the equation that is later used to calculate the standard deviation
+	sumSrcSrcVol := isNewPeriod ? volume * math.pow(src, 2) : volume * math.pow(src, 2) + sumSrcSrcVol[1]
+
+	_vwap = sumSrcVol / sumVol
+	variance = sumSrcSrcVol / sumVol - math.pow(_vwap, 2)
+	variance := variance < 0 ? 0 : variance
+	stDev = math.sqrt(variance)
+
+	lowerBand = _vwap - stDev * stDevMultiplier
+	upperBand = _vwap + stDev * stDevMultiplier
+
+	[_vwap, lowerBand, upperBand]
+
+hideonDWM = input(false, title="Hide VWAP on 1D or Above", group="VWAP Settings")
+var anchor = input.string(defval = "Session", title="Anchor Period",
+ options=["Session", "Week", "Month", "Quarter", "Year", "Decade", "Century", "Earnings", "Dividends", "Splits"], group="VWAP Settings")
+src = input(title = "Source", defval = hlc3, group="VWAP Settings")
+offset = input(0, title="Offset", group="VWAP Settings")
+
+showBands = input(false, title="Calculate Bands", group="Standard Deviation Bands Settings")
+stdevMult = input(1.0, title="Bands Multiplier", group="Standard Deviation Bands Settings")
+
+timeChange(period) =>
+	ta.change(time(period))
+
+new_earnings = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_dividends = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+new_split = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_on, ignore_invalid_symbol=true)
+
+isNewPeriod = switch anchor
+	"Earnings" => not na(new_earnings)
+	"Dividends" => not na(new_dividends)
+	"Splits" => not na(new_split)
+	"Session" => timeChange("D")
+	"Week" => timeChange("W")
+	"Month" => timeChange("M")
+	"Quarter" => timeChange("3M")
+	"Year" => timeChange("12M")
+	"Decade" => timeChange("12M") and year % 10 == 0
+	"Century" => timeChange("12M") and year % 100 == 0
+	=> false
+
+isEsdAnchor = anchor == "Earnings" or anchor == "Dividends" or anchor == "Splits"
+if na(src[1]) and not isEsdAnchor
+	isNewPeriod := true
+
+float vwapValue = na
+float std = na
+float upperBandValue = na
+float lowerBandValue = na
+
+if not (hideonDWM and timeframe.isdwm)
+    [_vwap, bottom, top] = computeVWAP(src, isNewPeriod, stdevMult)
+    vwapValue := _vwap
+    upperBandValue := showBands ? top : na
+    lowerBandValue := showBands ? bottom : na
+
+plot(vwapValue, title="VWAP", color=#02f6fa, offset=offset, linewidth = 1 )
+
+upperBand = plot(upperBandValue, title="Upper Band", color=color.green, offset=offset)
+lowerBand = plot(lowerBandValue, title="Lower Band", color=color.green, offset=offset)
+
+fill(upperBand, lowerBand, title="Bands Fill", color= showBands ? color.new(color.green, 95) : na)
+
+// ******************************* Trend Fill from 200 SMMA ******************************
+
+trendFill = input.bool(title='Show Trend Fill', defval=true, group='Smoothed MA Inputs')
+ema2 = ta.ema(close, 2)
+ema2plot = plot(ema2, color=color.new(#2ecc71, 100), style=plot.style_line, linewidth=1, title='EMA(2)', editable=false)
+
+fill(ema2plot, sma4plot, color=ema2 > smma4 and trendFill ? color.new(color.green,85) : ema2 < smma4 and trendFill ? color.new(color.red,85) : na, title='Trend Fill')
+
+// ******************************* TICK Background Fill *********************************
+
+displayTICK = input.bool(false, title="Fill background with TICK sentiment", group="TICK Brackground Fill")
+
+//get TICK data
+tickO = request.security("USI:TICK", timeframe.period, open)
+tickC = request.security("USI:TICK", timeframe.period, close)
+
+//Background
+bgcolor(displayTICK and tickC > 0 ? color.new(color.green,99) : color.new(color.red,99))
+bgcolor(displayTICK and tickC > 499 ? color.new(color.green,95) : na)
+bgcolor(displayTICK and tickC < -499 ? color.new(color.red,95) : na)
+bgcolor(displayTICK and tickC > 999 ? color.new(color.green,95) : na)
+bgcolor(displayTICK and tickC < -999 ? color.new(color.red,95) : na)
+
+//Alert conditions
+alertcondition(tickC[1]<0 and tickC>0 and barstate.isconfirmed, "TICK turned green")
+alertcondition(tickC[1]>0 and tickC<0 and barstate.isconfirmed, "TICK turned red")
+alertcondition(tickC>499  and barstate.isconfirmed, "TICK > 500")
+alertcondition(tickC<-499 and barstate.isconfirmed, "TICK < 500")
+alertcondition(tickC>999  and barstate.isconfirmed, "TICK Overboughht")
+alertcondition(tickC<-999 and barstate.isconfirmed, "TICK Oversold")

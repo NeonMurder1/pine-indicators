@@ -1,0 +1,80 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Lupown
+//@version=5
+// The non-repainting implementation of Nadaraya–Watson Regression using a Rational Quadratic Kernel is an original idea from @jdehorty i added the upper band an lower band using ATR, with this
+// we get an aproximation of Nadaraya-Watson Envelope
+    
+
+indicator('Nadaraya-Watson non repainting', overlay=true, timeframe="")
+
+src = input.source(close, 'Source')
+h = input.float(8., 'Lookback Window', minval=3., tooltip='The number of bars used for the estimation. This is a sliding value that represents the most recent historical bars. Recommended range: 3-50')
+r = input.float(8., 'Relative Weighting', step=0.25, tooltip='Relative weighting of time frames. As this value approaches zero, the longer time frames will exert more influence on the estimation. As this value approaches infinity, the behavior of the Rational Quadratic Kernel will become identical to the Gaussian kernel. Recommended range: 0.25-25')
+x_0 = input.int(25, "Start Regression at Bar", tooltip='Bar index on which to start regression. The first bars of a chart are often highly volatile, and omission of these initial bars often leads to a better overall fit. Recommended range: 5-25')
+showMiddle = input(true, "Show middle band")
+smoothColors = input.bool(false, "Smooth Colors", tooltip="Uses a crossover based mechanism to determine colors. This often results in less color transitions overall.", inline='1', group='Colors')
+lag = input.int(2, "Lag", tooltip="Lag for crossover detection. Lower values result in earlier crossovers. Recommended range: 1-2", inline='1', group='Colors')
+
+lenjeje = input(32, "ATR Period", tooltip= 'Period to calculate upper and lower band', group='Bands')
+coef = input(2.7,"Multiplier",tooltip= 'Multiplier to calculate upper and lower band', group='Bands')
+float y1 = 0.
+float y2 = 0.
+srcArray = array.new<float>(0)
+array.push(srcArray, src)
+size = array.size(srcArray)
+
+
+kernel_regression1(_src, _size, _h) =>
+    float _currentWeight = 0.
+    float _cumulativeWeight = 0.
+    for i = 0 to _size + x_0
+        y = _src[i] 
+        w = math.pow(1 + (math.pow(i, 2) / ((math.pow(_h, 2) * 2 * r))), -r)
+        _currentWeight += y*w
+        _cumulativeWeight += w
+    [_currentWeight, _cumulativeWeight]
+
+[currentWeight1, cumulativeWeight1] = kernel_regression1(src, size, h)
+yhat1 = currentWeight1 / cumulativeWeight1
+[currentWeight2, cumulativeWeight2] = kernel_regression1(src, size, h-lag)
+yhat2 = currentWeight2 / cumulativeWeight2
+
+// Rates of Change
+bool wasBearish = yhat1[2] > yhat1[1]
+bool wasBullish = yhat1[2] < yhat1[1]
+bool isBearish = yhat1[1] > yhat1
+bool isBullish = yhat1[1] < yhat1
+bool isBearishChange = isBearish and wasBullish
+bool isBullishChange = isBullish and wasBearish
+
+// Crossovers
+bool isBullishCross = ta.crossover(yhat2, yhat1)
+bool isBearishCross = ta.crossunder(yhat2, yhat1) 
+bool isBullishSmooth = yhat2 > yhat1
+bool isBearishSmooth = yhat2 < yhat1
+
+// Colors
+color c_bullish = input.color(#3AFF17, 'Bullish Color', group='Colors')
+color c_bearish = input.color(#FD1707, 'Bearish Color', group='Colors')
+color colorByCross = isBullishSmooth ? c_bullish : c_bearish
+color colorByRate = isBullish ? c_bullish : c_bearish
+color plotColor = smoothColors ? colorByCross : colorByRate
+
+// Plot
+plot(showMiddle ? yhat1 : na, "Rational Quadratic Kernel Estimate", color=plotColor, linewidth=2)
+
+upperjeje = yhat1 + coef*ta.atr(lenjeje)
+lowerjeje = yhat1 - coef*ta.atr(lenjeje)
+upperje = plot(upperjeje , "Rational Quadratic Kernel Upper", color=color.rgb(0, 247, 8), linewidth=2)
+lowerje = plot(lowerjeje, "Rational Quadratic Kernel Lower", color=color.rgb(255, 0, 0), linewidth=2)
+
+//plot(yhat1 + multi, "Rational Quadratic Kernel Estimate", color=color.silver, linewidth=2)
+plotchar(ta.crossover(close,upperjeje),char = "🥀", location = location.abovebar, size = size.tiny)
+plotchar(ta.crossunder(close,lowerjeje),char = "🍀",location = location.belowbar , size = size.tiny)
+// Alerts for Color Changes estimator
+alertcondition(smoothColors ? isBearishCross : isBearishChange, title='Bearish Color Change', message='Nadaraya-Watson: {{ticker}} ({{interval}}) turned Bearish ▼')
+alertcondition(smoothColors ? isBullishCross : isBullishChange, title='Bullish Color Change', message='Nadaraya-Watson: {{ticker}} ({{interval}}) turned Bullish ▲')
+
+// Alerts when price cross upper and lower band
+alertcondition(ta.crossunder(close,lowerjeje), title='Price close under lower band', message='Nadaraya-Watson: {{ticker}} ({{interval}}) crossed under lower band 🍀')
+alertcondition(ta.crossover(close,upperjeje), title='Price close above upper band', message='Nadaraya-Watson: {{ticker}} ({{interval}}) Crossed above upper band 🥀')

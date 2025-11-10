@@ -1,0 +1,127 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//
+// @version=5
+//
+// L&L Pullback Arrows
+//
+// Pullback Arrows helps to visualize the best possible entries for trend following setups ("buying the dip")
+//
+// Includes four different types of arrows = aggresive(aggro), moderate(halfsize), conservative(fullsize) and the rare (offers the best risk/reward during the trend)
+//
+// The goal of these arrows is to force the traders to scale in & out of trades which is in my opinion crucial when it comes to trend following strategies
+//
+// With the Pullback arrows, trader can pick his own approach and risk level thanks to four different types of arrows  
+//
+// Created by © L&L Capital
+// 
+
+indicator("LNL Pullback Arrows",shorttitle="Pullback Arrows", overlay=true) 
+
+// Inputs
+
+fastema = input(21,title="EMA Cloud Fast")
+slowema = input(55,title="EMA Cloud Slow")
+stoplinefactor = input(1.0,title="StopLine Factor")
+
+// DMI Bars Calculations
+
+up = ta.change(high)
+down = -ta.change(low)
+plusDM = na(up) ? na : (up > down and up > 0 ? up : 0)
+minusDM = na(down) ? na : (down > up and down > 0 ? down : 0)
+trur = ta.rma(ta.tr, 14)
+plus = fixnan(100 * ta.rma(plusDM, 14) / trur)
+minus = fixnan(100 * ta.rma(minusDM, 14) / trur)
+sum = plus + minus
+adx = 100 * ta.rma(math.abs(plus - minus) / (sum == 0 ? 1 : sum), 14)
+DMIPOS = (plus > minus) and (adx > 20)
+DMINEG = (minus > plus) and (adx > 20)
+DMINEU = (adx < 20)
+
+// Higher Time Frame MACD Calculations
+
+[macdLine, signalLine, histLine] = ta.macd(close, 12, 26, 9)
+mtfMacd = request.security(syminfo.tickerid, "W", macdLine)
+mtfSignal = request.security(syminfo.tickerid, "W", signalLine)
+MACDUp = mtfMacd >= mtfSignal
+MACDDn = mtfMacd <= mtfSignal
+
+// EMAs & Keltner Channel Calculations
+
+ADXAggro = adx > 30
+RedCandle =  open[1] > close[1]
+GreenCandle = open[1] < close[1]
+StackedEMAsUp = ta.ema(close, 8) > ta.ema(close, 21) and ta.ema(close, 34) > ta.ema(close, 55) 
+StackedEMAsDn = ta.ema(close, 8) < ta.ema(close, 21) and ta.ema(close, 34) < ta.ema(close, 55) 
+MA21 = hl2 < ta.ema(close, 21)
+MA21s = hl2 > ta.ema(close, 21) 
+MA55 = hl2 > ta.ema(close, 55) 
+MA55s = hl2 < ta.ema(close, 55) 
+MAAgro = low < ta.ema(close, 5) and low > ta.ema(close, 13) 
+MAAgros = high > ta.ema(close, 5) and high < ta.ema(close, 13)
+kma = ta.ema(close, 21)
+rangema = ta.ema(ta.tr, 21)
+upper = kma + rangema * 0.5 
+lower = kma - rangema * 0.5 
+upper1 = kma + rangema * 1 
+lower1 = kma - rangema * 1 
+upper2 = kma + rangema * 2 
+lower2 = kma - rangema * 2 
+KeltnerLongBelow = hl2 <  upper
+KeltnerLongAbove = hl2 > lower1     
+KeltnerLongBelow1 = hl2  < lower  
+KeltnerLongTarget = high > upper2  
+KeltnerLongTarget2 = hl2 >= upper1
+KeltnerShortTarget = low < lower2 
+KeltnerShortTarget2 = hl2 <= lower1 
+KeltnerShortBelow = hl2 > lower 
+KeltnerShortAbove = hl2 < upper1 
+KeltnerShortAbove1 = hl2 > upper
+
+// Pullback Arrows Calculations
+
+RareArrowUp = StackedEMAsUp and KeltnerLongBelow1 and MA55 and DMIPOS and MACDUp
+RareArrowDn = StackedEMAsDn and KeltnerShortAbove1 and MA55s and DMINEG and MACDDn
+FullSizeArrowUp = StackedEMAsUp and not(RareArrowUp) and KeltnerLongAbove and MA21 and DMIPOS and MACDUp
+FullSizeArrowDn = StackedEMAsDn and not(RareArrowDn) and KeltnerShortAbove and MA21s and DMINEG and MACDDn
+HalfSizeArrowUp = StackedEMAsUp and not(FullSizeArrowUp) and not(RareArrowUp) and KeltnerLongBelow and KeltnerLongAbove and DMIPOS and MACDUp
+HalfSizeArrowDn = StackedEMAsDn and not(FullSizeArrowDn) and not(RareArrowDn) and KeltnerShortBelow and KeltnerShortAbove and DMINEG and MACDDn
+AggroArrowUp = StackedEMAsUp and not(HalfSizeArrowUp) and MAAgro and DMIPOS and RedCandle and ADXAggro and MACDUp
+AggroArrowDn = StackedEMAsDn and not(HalfSizeArrowDn) and MAAgros and DMINEG and GreenCandle and ADXAggro and MACDDn
+
+// Pullback Arrows Plots
+
+plotshape(AggroArrowUp, title='Aggro Up',style=shape.triangleup,location=location.belowbar,color=#8cff00,size=size.tiny,display=display.none) 
+plotshape(AggroArrowDn, title='Aggro Down',style=shape.triangledown,location=location.abovebar,color=#faa1a4,size=size.tiny,display=display.none) 
+plotshape(HalfSizeArrowUp,title='HalfSize Up',style=shape.triangleup,location=location.belowbar,color=#1b5e20,size=size.tiny)  
+plotshape(HalfSizeArrowDn,title='HalfSize Down',style=shape.triangledown,location=location.abovebar,color=#730000,size=size.tiny)  
+plotshape(FullSizeArrowUp,title='FullSize Up',style=shape.triangleup,location=location.belowbar,color=#009900,size=size.small)  
+plotshape(FullSizeArrowDn,title='FullSize Down',style=shape.triangledown,location=location.abovebar,color=#cc0000,size=size.small)
+plotshape(RareArrowUp,title='Rare Up',style=shape.triangleup,location=location.belowbar,color=(color.purple),size=size.small)
+plotshape(RareArrowDn,title='Rare Down',style=shape.triangledown,location=location.abovebar,color=(color.purple),size=size.small)
+
+// Simple EMA Cloud Calculations + Plots
+
+ema_1 = ta.ema(close,fastema)
+ema_2 = ta.ema(close,slowema)
+ema1 = plot(ema_1,title="Fast EMA",color=color.black,display=display.none)
+ema2 = plot(ema_2,title="Slow EMA",color=color.black,display=display.none)
+Cloudup = ema_1 > ema_2
+Clouddown = ema_1 < ema_2
+Cloud = Cloudup ? color.green : Clouddown ? color.red : na
+fill(ema1,ema2,title="EMA Cloud",color = Cloud, transp = 80)
+
+// Pullback StopLine Calculations + Plots *UPDATE* 
+
+KeltnerLineUp = kma - rangema * stoplinefactor
+KeltnerLineDn = kma + rangema * stoplinefactor
+MALine21 = ta.ema(close, 21)
+MALine55 = ta.ema(close, 55)
+StopLineTrendUp = MALine21 > MALine55 and hl2 > KeltnerLineUp
+StopLineTrendDn = MALine21 < MALine55 and hl2 < KeltnerLineDn
+StopLineColor = StopLineTrendUp ? #27c22e : #ff0000
+
+StopLine = StopLineTrendUp ? KeltnerLineUp : StopLineTrendDn ? KeltnerLineDn : na
+plotchar(StopLine, title='StopLine',char="-",location=location.absolute,color=StopLineColor,size=size.tiny,editable = true)
+
+

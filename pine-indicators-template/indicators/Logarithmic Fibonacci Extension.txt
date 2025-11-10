@@ -1,0 +1,125 @@
+//@version=3
+study("Logarithmic Fibonacci Extension", shorttitle="LogFib Extension", overlay=true)
+
+// This script will allow you to use Logarithmic (instead of linear) Fibonacci extensions.
+// Please see excellent write up here: https://www.elliottwavetrader.net/members/atchat/?threadId=3102639
+// explaining why logarithmic is preferred, especially over large price movement and long timeframes.
+// All TradingView fib tools use linear math, and will show incorrect long-term levels because of this.
+//
+// HOW TO USE:
+// * Enter your points for Wave 0, 1, and 2. Example: 666.79, 1219.80, 1010.91 in the SPX chart shown.
+// * Turn on "show lines" and "show labels". These are OFF by default because the chart will usually get warped
+//   if you display the lines before entering the actual values you want.
+// * Change the "label offset" if the fib labels are too close or too far from the chart.
+// * Select up to 2.000, 3.000, and 4.000 to display higher-power fibs.
+//
+// Please be aware that this is considered an "INDICATOR" script and so will not save the values separately
+// for each chart. You will need to enter new values each time you change to a different symbol.
+
+w0 = input(title="Wave 0", type=float, defval=10)
+w1 = input(title="Wave 1", type=float, defval=20)
+w2 = input(title="Wave 2", type=float, defval=15)
+
+showLines  = input(title="Show lines", type=bool, defval=false)
+showLabels = input(title="Show labels", type=bool, defval=false)
+labelOffset = input(title="Label offset", type=integer, defval=10, minval=-500, maxval=500)
+showHigher2 = input(title="Up to 2.000", type=bool, defval=true)
+showHigher3 = input(title="Up to 3.000", type=bool, defval=false)
+showHigher4 = input(title="Up to 4.000", type=bool, defval=false)
+
+plot(showLines ? w0 : na, title='baseline', color=red,   style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? w0 : na, title="labelbase", text="base",  color=red,   style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wa = w2 * pow(w1/w0, 0.000)
+plot(showLines ? wa : na, title='fib0000',  color=red,   style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wa : na, title="label0000", text="0.000", color=red,   style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wb = w2 * pow(w1/w0, 0.236)
+plot(showLines ? wb : na, title='fib0236',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wb : na, title="label0236", text="0.236", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wc = w2 * pow(w1/w0, 0.382)
+plot(showLines ? wc : na, title='fib0382',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wc : na, title="label0382", text="0.382", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wd = w2 * pow(w1/w0, 0.500)
+plot(showLines ? wd : na, title='fib0500',  color=green, style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wd : na, title="label0500", text="0.500", color=green, style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+we = w2 * pow(w1/w0, 0.618)
+plot(showLines ? we : na, title='fib0618',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? we : na, title="label0618", text="0.618", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wf = w2 * pow(w1/w0, 0.764)
+plot(showLines ? wf : na, title='fib0764',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wf : na, title="label0764", text="0.764", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wg = w2 * pow(w1/w0, 1.000)
+plot(showLines ? wg : na, title='fib1000',  color=red,   style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wg : na, title="label1000", text="1.000", color=red,   style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wh = (showHigher2) ? w2 * pow(w1/w0, 1.236) : na
+plot(showLines ? wh : na, title='fib1236',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wh : na, title="label1236", text="1.236", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wi = (showHigher2) ? w2 * pow(w1/w0, 1.382) : na
+plot(showLines ? wi : na, title='fib1382',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wi : na, title="label1382", text="1.382", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wj = (showHigher2) ? w2 * pow(w1/w0, 1.500) : na
+plot(showLines ? wj : na, title='fib1500',  color=green, style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wj : na, title="label1500", text="1.500", color=green, style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wk = (showHigher2) ? w2 * pow(w1/w0, 1.618) : na
+plot(showLines ? wk : na, title='fib1618',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wk : na, title="label1618", text="1.618", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wl = (showHigher2) ? w2 * pow(w1/w0, 1.764) : na
+plot(showLines ? wl : na, title='fib1764',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wl : na, title="label1764", text="1.764", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wm = (showHigher2) ? w2 * pow(w1/w0, 2.000) : na
+plot(showLines ? wm : na, title='fib2000',  color=red,   style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wm : na, title="label2000", text="2.000", color=red,   style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wn = (showHigher2 and showHigher3) ? w2 * pow(w1/w0, 2.236) : na
+plot(showLines ? wn : na, title='fib2236',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wn : na, title="label2236", text="2.236", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wo = (showHigher2 and showHigher3) ? w2 * pow(w1/w0, 2.382) : na
+plot(showLines ? wo : na, title='fib2382',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wo : na, title="label2382", text="2.382", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wp = (showHigher2 and showHigher3) ? w2 * pow(w1/w0, 2.618) : na
+plot(showLines ? wp : na, title='fib2618',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wp : na, title="label2618", text="2.618", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wq = (showHigher2 and showHigher3) ? w2 * pow(w1/w0, 2.764) : na
+plot(showLines ? wq : na, title='fib2764',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wq : na, title="label2764", text="2.764", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wr = (showHigher2 and showHigher3) ? w2 * pow(w1/w0, 3.000) : na
+plot(showLines ? wr : na, title='fib3000',  color=red,   style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wr : na, title="label3000", text="3.000", color=red,   style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+ws = (showHigher2 and showHigher3 and showHigher4) ? w2 * pow(w1/w0, 3.236) : na
+plot(showLines ? ws : na, title='fib3236',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? ws : na, title="label3236", text="3.236", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wt = (showHigher2 and showHigher3 and showHigher4) ? w2 * pow(w1/w0, 3.382) : na
+plot(showLines ? wt : na, title='fib3382',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wt : na, title="label3382", text="3.382", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wu = (showHigher2 and showHigher3 and showHigher4) ? w2 * pow(w1/w0, 3.618) : na
+plot(showLines ? wu : na, title='fib3618',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wu : na, title="label3618", text="3.618", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+wv = (showHigher2 and showHigher3 and showHigher4) ? w2 * pow(w1/w0, 3.764) : na
+plot(showLines ? wv : na, title='fib3764',  color=blue,  style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? wv : na, title="label3764", text="3.764", color=blue,  style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+ww = (showHigher2 and showHigher3 and showHigher4) ? w2 * pow(w1/w0, 4.000) : na
+plot(showLines ? ww : na, title='fib4000',  color=red,   style=circles, linewidth=1, offset=labelOffset)
+plotshape(showLabels ? ww : na, title="label4000", text="4.000", color=red,   style=shape.diamond, offset=labelOffset, location=location.absolute, show_last=1)
+
+//EOF

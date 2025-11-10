@@ -1,0 +1,143 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//
+// @version=5
+//
+// LNL Scalper Arrows
+//
+// The indicator consist of various different types of candlestick patterns that are truly time tested by multiptle veteran traders. These arrows are a combination 
+// of short-term scalping strategies taught by Linda Raschke & a trader that goes by name Quant Trade Edge. These strategies/patterns occur regularly within the 
+// markets. They offer high probability quick [scalping] moves during the trending days. These four patterns are based on pure price action, no oscillators, no trend
+// no momentum indicators involved. Trend (ema) is there just as a simple trending gauge. This is not even an indicator but rather a collection of candlestick patterns.
+//
+// LNL Scalper Arrows were designed specifically for intra-day trading. Mostly useful for the futures but also stocks as well. These arrows can work anywhere between
+// the fast-moving 512 or 1600 tick charts to a 1min, 2min and up to 5min or 10min charts. 
+//
+// Inspired by Linda Bradford Raschke & Quant Trade Edge
+// 
+// Created by L&L Capital
+// 
+
+indicator("LNL Scalper Arrows",shorttitle = "LNL Scalper Arrows", overlay = true)
+
+// Inputs
+
+string TailSignalType = input.string("Signal", "Tail Signal Type", options = ["Signal", "SignalBrake"],tooltip = "The Trigger can be viewed in two different ways:  #1 Signal: Plots the trigger before the triggerbar, basically right when the pattern is formed but not yet triggered. The signal is triggered once the next candle break the high or low of the current candle.  #2 SignalBrake: Plots the trigger afte the break of the high or low of the actual pattern. It is basically a candle after the signal candle. (Signal is better for trading because it gives you time to prepare for the actual break of the high or low = the actual signal. SignalBrake is great for looking back in history only for the patterns that actually traded).")
+string ScalpSignalType = input.string("Signal", "Scalp Signal Type", options = ["Signal", "SignalBrake"],tooltip = "The Trigger can be viewed in two different ways:  #1 Signal: Plots the trigger before the triggerbar, basically right when the pattern is formed but not yet triggered. The signal is triggered once the next candle break the high or low of the current candle.  #2 SignalBrake: Plots the trigger afte the break of the high or low of the actual pattern. It is basically a candle after the signal candle. (Signal is better for trading because it gives you time to prepare for the actual break of the high or low = the actual signal. SignalBrake is great for looking back in history only for the patterns that actually traded).")
+string HoagieSignalType = input.string("Signal", "Hoagie Signal Type", options = ["Signal", "SignalBrake"],tooltip = "The Trigger can be viewed in two different ways:  #1 Signal: Plots the trigger before the triggerbar, basically right when the pattern is formed but not yet triggered. The signal is triggered once the next candle break the high or low of the current candle.  #2 SignalBrake: Plots the trigger afte the break of the high or low of the actual pattern. It is basically a candle after the signal candle. (Signal is better for trading because it gives you time to prepare for the actual break of the high or low = the actual signal. SignalBrake is great for looking back in history only for the patterns that actually traded).")
+string UmbrellaSignalType = input.string("Signal", "Umbrella Signal Type", options = ["Signal", "SignalBrake"],tooltip = "The Trigger can be viewed in two different ways:  #1 Signal: Plots the trigger before the triggerbar, basically right when the pattern is formed but not yet triggered. The signal is triggered once the next candle break the high or low of the current candle.  #2 SignalBrake: Plots the trigger afte the break of the high or low of the actual pattern. It is basically a candle after the signal candle. (Signal is better for trading because it gives you time to prepare for the actual break of the high or low = the actual signal. SignalBrake is great for looking back in history only for the patterns that actually traded).")
+TrendStrength = input(20,title = "Trend Strength",tooltip = "Trend Strength: Adjustable length for the Trend Gauge (exponential moving average). Although there is no ideal ema length. Frequently used lenghts are: 8,9,10,13,20,21,34")
+PinBarBTWRatio = input.float(2.5,step = 0.5,title = "PinBar BTW Ratio",tooltip = "PinBar (Body-To-Wick) Ratio: You can set the size of the body of a pin bar candle for Eat the Tail and Umbrella patterns.PinBar BTW Ratio measures the ratio between the wick & the body of the candle. Ref. interval 2.0 - 5.0 (ideal pin bar is 2.0 - 3.0)")
+ATRLength = input(7,title = "ATR Length",tooltip = "ATR Length: Adjustable Length for the ATR Label (table) in the top corner. This length also moves with the Target & Stop values. Default is set to 7 period ATR.")
+RoundNumbersTo = input(2,title = "Round Numbers To",tooltip = "Round Numbers To: Customizable decimal numbers in the ATR Label. Some instruments have much smaller tick size. Such as crude oil or bonds. For NQ trading use 0 (round numbers).")
+TargetATR = input(2,title = "Target = ATR /",tooltip = "TargetATR: Adjustable target formula. Default is ATR devided by 2.")
+StopATR = input(1,title = "Stop = ATR *",tooltip = "StopATR: Adjustable stop formula. Default is ATR times 1 or TargetATR times 2.")
+
+// Functions & Definitons
+
+iTelo = math.abs(close-open)
+bPinUp =  (((high - low) / (iTelo)) > PinBarBTWRatio) and math.max(open,close)<high-((high-low)/2)
+bPinDown = (((high - low)/(iTelo)) > PinBarBTWRatio) and math.min(open,close)>low+((high-low)/2)
+bSignalUp = bPinUp
+bSignalDown = bPinDown
+up = bSignalUp ? high : na
+down = bSignalDown ? high : na
+greenbar = close > open
+redbar = close < open
+ema8 = ta.ema(close,8)
+trendd = ta.ema(close,TrendStrength)
+[Mid1, Kup, Kdn] = ta.kc(close, 21, 1.0)
+[Mid2, KUP, KDN] = ta.kc(close, 21, 1.5)
+
+// Tail Arrows [Eat The Tail]
+
+TailUp = if TailSignalType == "Signal"
+    bPinUp and hl2[1] > ema8 and high[2] < high[1] and hl2 > ema8 and hl2 > Kup
+else if TailSignalType == "SignalBrake"
+    high > up[1] and hl2 > hl2[1] and high[2] < high[1] and hl2[1] > ema8 and hl2 > ema8 and hl2 > Kup
+	
+TailDown = if TailSignalType == "Signal"
+    bPinDown and hl2[1] < ema8 and low[2] > low[1] and hl2 < ema8 and hl2 < KDN
+else if TailSignalType == "SignalBrake"
+    high < down[1] and hl2 < hl2[1] and low[2] > low[1] and hl2[1] < ema8 and hl2 < ema8 and hl2 < KDN
+
+
+plotshape(TailUp,title='Tail Up',style=shape.triangleup,location=location.belowbar,color=#8cff00,size=size.small,display=display.none) 
+plotshape(TailDown,title='Tail Down',style=shape.triangledown,location=location.abovebar,color=#faa1a4,size=size.small,display=display.none) 
+
+// Scalp Arrows [Scallops]
+
+ScalpUp = if ScalpSignalType == "Signal"
+    close > open and low < low[1] and high < high[1] and hl2 > trendd
+else if ScalpSignalType == "SignalBrake"
+    close[1] > open[1] and low[1] < low[2] and high[1] < high[2] and hl2[1] > trendd and high > high[1]
+	
+ScalpDown = if ScalpSignalType == "Signal"
+    close < open and low > low[1] and high > high[1] and hl2 < trendd
+else if ScalpSignalType == "SignalBrake"
+    close[1] < open[1] and low[1] > low[2] and high[1] > high[2] and hl2[1] < trendd and low < low[1]
+
+
+plotshape(ScalpUp,title='Scalp Up',style=shape.triangleup,location=location.belowbar,color=#27c22e,size=size.small) 
+plotshape(ScalpDown,title='Scalp Down',style=shape.triangledown,location=location.abovebar,color=#ff0000,size=size.small) 
+
+// Hoagie Arrows [Hoagies]
+
+HoagieUp = if HoagieSignalType == "Signal"
+    high < high[1] and low > low[1] and high[1] < high[2] and low[1] > low[2] and hl2 > trendd
+else if HoagieSignalType == "SignalBrake"
+    high[1] < high[2] and low[1] > low[2] and high[2] < high[3] and low[2] > low[3] and high > high[3] and hl2 > trendd
+	
+HoagieDown = if HoagieSignalType == "Signal"
+    low > low[1] and high < high[1] and low[1] > low[2] and high[1] < high[2] and hl2 < trendd
+else if HoagieSignalType == "SignalBrake"
+    low[1] > low[2] and high[1] < high[2] and low[2] > low[3] and high[2] < high[3] and low < low[3] and hl2 < trendd
+
+
+plotshape(HoagieUp,title='Hoagie Up',style=shape.triangleup,location=location.belowbar,color=color.purple,size=size.small) 
+plotshape(HoagieDown,title='Hoagie Down',style=shape.triangledown,location=location.abovebar,color=color.purple,size=size.small) 
+
+// Umbrella Arrows [Umbrellas]
+
+UmbrellaUp = if UmbrellaSignalType == "Signal"
+    (open >= close[1]) and (close >= close[1]) and (high <= high[1]) and (low >= low[1]) and (close[1] > open[1]) and (close-open+close[1]) - (open[1]/high-low+high[1]-low[1]) > 0.5 and (low > trendd)
+else if UmbrellaSignalType == "SignalBrake"
+    (open[1] >= close[2]) and (close[1] >= close[2]) and (high[1] <= high[2]) and (low[1] >= low[2]) and (close[2] > open[2]) and (close[1]-open[1]+close[2]) - (open[1]/high[1]-low[1]+high[2]-low[2]) > 0.5 and (low > trendd)
+	
+UmbrellaDown = if UmbrellaSignalType == "Signal"
+    (open <= close[1]) and (close <= close[1]) and (high >= high[1]) and (low <= low[1]) and (close[1] < open[1]) and (close-open+close[1]) - (open[1]/high-low+high[1]-low[1]) > 0.5 and (high < trendd)
+else if UmbrellaSignalType == "SignalBrake"
+    (open[1] <= close[2]) and (close[1] <= close[2]) and (high[1] >= high[2]) and (low[1] <= low[2]) and (close[2] < open[2]) and (close[1]-open[1]+close[2]) - (open[1]/high[1]-low[1]+high[2]-low[2]) > 0.5 and (high < trendd)
+
+
+plotshape(UmbrellaUp,title='Umbrella Up',style=shape.triangleup,location=location.belowbar,color=#0033c1,size=size.small) 
+plotshape(UmbrellaDown,title='Umbrella Down',style=shape.triangledown,location=location.abovebar,color=#0033c1,size=size.small) 
+
+// Inside Outside Bars
+
+OutUp = greenbar and (high > high[1]) and (low < low[1]) and (close > high[1]) and (open < open[1]) and KUP
+OutDn = redbar and (low < low[1]) and (high > high[1]) and (close < low[1]) and (open > open[1]) and KDN
+
+plotchar(OutUp,title = "Outside Up Bar",char = '˅',location = location.belowbar,size = size.tiny,color = color.white,display = display.none)
+plotchar(OutDn,title = "Outside Down Bar",char = '˄',location = location.abovebar,size = size.tiny,color = color.white,display = display.none)
+
+// Trend Gauge [Enhanced EMA]
+
+avg = ta.ema(close,TrendStrength)
+rsi = ta.rsi(close,30)
+TrendColor = avg < open and avg < close and rsi > 50 ? #27c22e : avg > open and avg > close and rsi < 50 ? #ff0000 : color.gray
+plot(avg,title = "Trend",color = TrendColor,linewidth = 2)
+
+// ATR & Target & Stop Label Calculations
+
+atr = ta.atr(ATRLength)
+target = atr / TargetATR
+stop = atr * StopATR
+
+Table = table.new(position = position.top_right,  columns=8, rows=1, bgcolor=color.gray)
+if barstate.islast
+    table.cell(table_id=Table, column=1, row=0, text=string ("ATR:"), height=0, text_color=color.rgb(0, 0, 0), text_halign=text.align_center, text_size = size.auto, text_valign= text.align_center, bgcolor=color.yellow)  
+    table.cell(table_id=Table, column=2, row=0, text=str.tostring(math.round(atr,RoundNumbersTo)), height=0, text_color=color.rgb(0, 0, 0), text_halign=text.align_center, text_size = size.auto, text_valign= text.align_center, bgcolor=color.yellow)
+    table.cell(table_id=Table, column=3, row=0, text=string ("Target:"), height=0, text_color=color.rgb(0, 0, 0), text_halign=text.align_center, text_size = size.auto, text_valign= text.align_center, bgcolor=#27c22e)  
+    table.cell(table_id=Table, column=4, row=0, text=str.tostring(math.round(target,RoundNumbersTo)), height=0, text_color=color.rgb(0, 0, 0), text_halign=text.align_center, text_size = size.auto, text_valign= text.align_center, bgcolor=#27c22e)  
+    table.cell(table_id=Table, column=5, row=0, text=string ("Stop:"), height=0, text_color=color.rgb(0, 0, 0), text_halign=text.align_center, text_size = size.auto, text_valign= text.align_center, bgcolor=#ff0000)  
+    table.cell(table_id=Table, column=6, row=0, text=str.tostring(math.round(stop,RoundNumbersTo)), height=0, text_color=color.rgb(0, 0, 0), text_halign=text.align_center, text_size = size.auto, text_valign= text.align_center, bgcolor=#ff0000)  

@@ -1,0 +1,212 @@
+//@version=3
+study(title="Multi-Bollinger [DW]", shorttitle="MB [DW]", overlay=true)
+//by Donovan Wall
+
+//This is an experimental study designed to visualize trend activity and volatility using a set of two Bollinger Bands calculated with a basis moving average type of your choice.
+//The available moving averages in this script are:
+//  -Exponential Moving Average
+//  -Simple Moving Average
+//  -Weighted Moving Average
+//  -Volume Weighted Moving Average
+//  -Hull Moving Average
+//  -Least Squares Moving Average
+//  -Arnaud Legoux Moving Average
+//  -Coefficient of Variation Weighted Moving Average
+//  -Fractal Adaptive Moving Average
+//  -Kaufman's Adaptive Moving Average
+
+//In addition, a middle filter is calculated by taking the median of the two basis lines.
+
+//Multi-Timeframe functionality is included. You can choose any timeframe that TradingView supports as the basis resolution for the bands.
+
+//Custom bar color scheme is included with four options to choose from.
+
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+//Updates:
+//I've included a custom standard deviation calculation that is based on the active filter type, because different averages yield different biases.
+//A toggle switch is included if you wish to keep TradingView's default standard deviation calculation.
+
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+//Updates:
+
+//Altered the list of available filter types
+//The available filter types in this script are:
+// -> Exponential Moving Average
+// -> Double Exponential Moving Average
+// -> Simple Moving Average
+// -> Smoothed Moving Average
+// -> Weighted Moving Average
+// -> Volume Weighted Moving Average
+// -> Arnaud Legoux Moving Average
+// -> Least Squares Moving Average
+// -> Hull Moving Average
+// -> Coefficient of Variation Weighted Moving Average
+// -> Kaufman's Adaptive Moving Average
+// -> Moving 50th Percentile
+
+//Filter type and bar color method are now selected via an easy to use dropdown menus.
+
+//This script has a fairly high runtime due to multi-timeframe capabilities. To help reduce this runtime, I've condensed the operations and removed unnecessary clutter.
+
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+//Inputs
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//Source
+src = input(defval=close, title="Source")
+
+//Filter Type
+ftype = input(defval="SMA", options=["EMA", "DEMA", "SMA", "SMMA", "WMA", "VWMA", "ALMA", "LSMA", "Hull MA", "COVWMA", "KAMA", "50th Percentile"], title="Filter Type")
+
+//Volume Type
+voltype = input(defval="Default", options=["Default", "Tick"], title="Volume Type (if VWMA)")
+
+//Sampling Periods
+fper = input(defval=34,  title="Fast Filter Sampling Period")
+sper = input(defval=144, title="Slow Filter Sampling Period")
+
+//Standard Deviations
+ndev = input(defval=2, title="Number of Standard Deviations")
+
+//Alternate Resolution
+eares  = input(defval=false, title="Enable Alternate Resolution")
+altres = input(defval="D",   title="Alternate Resolution")
+
+//LSMA Offset
+loff = input(defval=0, minval=0, title="Offset (if LSMA)")
+
+//ALMA Offset and Sigma
+aoff  = input(defval=0.85, step=0.01, minval=0, title="Offset (if ALMA)")
+sigma = input(defval=6,               minval=0, title="Sigma (if ALMA)") 
+
+//KAMA Smoothing Constant
+fast = input(defval=0.666,  step=0.001,  minval=0.001,  title="Smoothing Constant Fast End (if KAMA)")
+slow = input(defval=0.0645, step=0.0001, minval=0.0001, title="Smoothing Constant Slow End (if KAMA)")
+
+//Bar Color Method
+bcm = input(defval="Dual Filter Method", options=["Fast Filter Method", "Slow Filter Method", "Middle Filter Method", "Dual Filter Method"], title="Bar Color Method")
+
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+//Definitions
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//DEMA
+dema(x, t)=>
+    dema = 2*ema(x, t) - ema(ema(x, t), t)
+    dema
+
+//VWMA
+VWMA(x, t)=>
+    tick     = syminfo.mintick
+    rng      = close - open
+    tickrng  = tick
+    tickrng := abs(rng) < tick ? nz(tickrng[1]) : rng
+    tickvol  = abs(tickrng)/tick
+    vol      = voltype=="Default" ? (volume==na ? tickvol : volume) : tickvol
+    vmp      = x*vol
+    VWMA     = sum(vmp, t)/sum(vol, t)
+    VWMA
+
+//SMMA
+smma(x, t)=>
+    smma  = x
+    smma := na(smma[1]) ? sma(x, t) : (nz(smma[1])*(t - 1) + x)/t
+    smma
+
+//Hull MA
+hullma(x, t)=>
+    hullma = wma(2*wma(x, t/2) - wma(x, t), round(sqrt(t)))
+    hullma
+    
+//COVWMA
+covwma(x, t) =>
+    cov    = stdev(x, t)/sma(x, t)
+    cw     = x*cov
+    covwma = sum(cw, t)/sum(cov, t)
+    covwma
+
+//KAMA
+kama(x, t)=>
+    dist   = abs(x[0] - x[1])
+    signal = abs(x - x[t])
+    noise  = sum(dist, t)
+    effr   = noise != 0 ? signal/noise : 1
+    sc     = pow(effr*(fast - slow) + slow, 2)
+    kama   = x
+    kama  := nz(kama[1]) + sc*(x - nz(kama[1]))
+    kama
+
+    
+//Filters
+maf = ftype=="EMA" ? ema(src, fper) : ftype=="DEMA" ? dema(src, fper) : ftype=="SMA" ? sma(src, fper) : ftype=="SMMA" ? smma(src, fper) : ftype=="WMA" ? wma(src, fper) : ftype=="VWMA" ? VWMA(src, fper) : ftype=="ALMA" ? alma(src, fper, aoff, sigma) : ftype=="LSMA" ? linreg(src, fper, loff) : ftype=="Hull MA" ? hullma(src, fper) : ftype=="COVWMA" ? covwma(src, fper) : ftype=="KAMA" ? kama(src, fper) : percentile_nearest_rank(src, fper, 50)
+mas = ftype=="EMA" ? ema(src, sper) : ftype=="DEMA" ? dema(src, sper) : ftype=="SMA" ? sma(src, sper) : ftype=="SMMA" ? smma(src, sper) : ftype=="WMA" ? wma(src, sper) : ftype=="VWMA" ? VWMA(src, sper) : ftype=="ALMA" ? alma(src, sper, aoff, sigma) : ftype=="LSMA" ? linreg(src, sper, loff) : ftype=="Hull MA" ? hullma(src, sper) : ftype=="COVWMA" ? covwma(src, sper) : ftype=="KAMA" ? kama(src, sper) : percentile_nearest_rank(src, sper, 50)
+
+//Variance
+fdevsq = pow(src - maf, 2)
+varf   = ftype=="EMA" ? ema(fdevsq, fper) : ftype=="DEMA" ? dema(fdevsq, fper) : ftype=="SMA" ? sma(fdevsq, fper) : ftype=="SMMA" ? smma(fdevsq, fper) : ftype=="WMA" ? wma(fdevsq, fper) : ftype=="VWMA" ? VWMA(fdevsq, fper) : ftype=="ALMA" ? alma(fdevsq, fper, aoff, sigma) : ftype=="LSMA" ? linreg(fdevsq, fper, loff) : ftype=="Hull MA" ? hullma(fdevsq, fper) : ftype=="COVWMA" ? covwma(fdevsq, fper) : ftype=="KAMA" ? kama(fdevsq, fper) : percentile_nearest_rank(fdevsq, fper, 50)
+sdevsq = pow(src - mas, 2)
+vars   = ftype=="EMA" ? ema(sdevsq, sper) : ftype=="DEMA" ? dema(sdevsq, sper) : ftype=="SMA" ? sma(sdevsq, sper) : ftype=="SMMA" ? smma(sdevsq, sper) : ftype=="WMA" ? wma(sdevsq, sper) : ftype=="VWMA" ? VWMA(sdevsq, sper) : ftype=="ALMA" ? alma(sdevsq, sper, aoff, sigma) : ftype=="LSMA" ? linreg(sdevsq, sper, loff) : ftype=="Hull MA" ? hullma(sdevsq, sper) : ftype=="COVWMA" ? covwma(sdevsq, sper) : ftype=="KAMA" ? kama(sdevsq, sper) : percentile_nearest_rank(sdevsq, sper, 50)
+
+//Standard Deviation
+stdevf = sqrt(varf)
+stdevs = sqrt(vars)
+
+//Filters
+mff      = eares ? security(tickerid, altres, maf, lookahead=barmerge.lookahead_on) : maf
+mffprev  = eares ? security(tickerid, altres, maf[1], lookahead=barmerge.lookahead_on) : maf[1]
+msf      = eares ? security(tickerid, altres, mas, lookahead=barmerge.lookahead_on) : mas
+msfprev  = eares ? security(tickerid, altres, mas[1], lookahead=barmerge.lookahead_on) : mas[1]
+midf     = (mff + msf)/2
+midfprev = (mffprev + msfprev)/2
+
+//Multi-Resolution Standard Deviations
+fdev = eares ? security(tickerid, altres, stdevf*ndev, lookahead=barmerge.lookahead_on) : stdevf*ndev
+sdev = eares ? security(tickerid, altres, stdevs*ndev, lookahead=barmerge.lookahead_on) : stdevs*ndev
+
+//Bands
+fhb = mff + fdev
+flb = mff - fdev
+shb = msf + sdev
+slb = msf - sdev
+
+//Colors
+ffcolor      = mff > mffprev ? lime : mff < mffprev ? red : orange
+sfcolor      = msf > msfprev ? green : msf < msfprev ? maroon : orange
+midfcolor    = midf > midfprev ? aqua : midf < midfprev ? fuchsia : orange
+dfcolor      = mff > msf ? aqua : mff < msf ? fuchsia : orange
+ffbarcolor   = (mff > mffprev) and (src > mff) and (src > src[1]) ? lime : (mff > mffprev) and (src > mff) and (src < src[1]) ? green : (mff < mffprev) and (src < mff) and (src < src[1]) ? red : (mff < mffprev) and (src < mff) and (src > src[1]) ? maroon : orange 
+sfbarcolor   = (msf > msfprev) and (src > msf) and (src > src[1]) ? lime : (msf > msfprev) and (src > msf) and (src < src[1]) ? green : (msf < msfprev) and (src < msf) and (src < src[1]) ? red : (msf < msfprev) and (src < msf) and (src > src[1]) ? maroon : orange
+midfbarcolor = (midf > midfprev) and (src > midf) and (src > src[1]) ? lime : (midf > midfprev) and (src > midf) and (src < src[1]) ? green : (midf < midfprev) and (src < midf) and (src < src[1]) ? red : (midf < midfprev) and (src < midf) and (src > src[1]) ? maroon : orange
+dfbarcolor   = (src > mff) and (src > msf) and (src > src[1]) ? lime : (src > mff) and (src > msf) and (src < src[1]) ? green : (src < mff) and (src < msf) and (src < src[1]) ? red : (src < mff) and (src < msf) and (src > src[1]) ? maroon : orange
+barcolor     = bcm=="Fast Filter Method" ? ffbarcolor : bcm=="Slow Filter Method" ? sfbarcolor : bcm=="Middle Filter Method" ? midfbarcolor : dfbarcolor
+
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+//Plots
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//Slow Band Set
+shbplot = plot(shb, color=aqua,    transp=100, title="Slow High Band")
+msfplot = plot(msf, color=sfcolor, transp=0,   title="Slow Filter")
+slbplot = plot(slb, color=fuchsia, transp=100, title="Slow Low Band")
+
+//Fast Band Set
+fhbplot = plot(fhb, color=lime,    transp=100, title="Fast High Band")
+mffplot = plot(mff, color=ffcolor, transp=0,   title="Fast Filter")
+flbplot = plot(flb, color=red,     transp=100, title="Fast Low Band")
+
+//Middle Filter
+midfplot = plot(midf, color=midfcolor, transp=0, linewidth=2, title="Middle Filter")
+
+//Slow Band Fills
+fill(shbplot, msfplot, color=green,  transp=90, title="Slow High Band Fill")
+fill(msfplot, slbplot, color=maroon, transp=90, title="Slow Low Band Fill")
+
+//Fast Band Fills
+fill(fhbplot, mffplot, color=lime, transp=90, title="Fast High Band Fill")
+fill(mffplot, flbplot, color=red,  transp=90, title="Fast Low Band Fill")
+
+//Dual KAMA Fill
+fill(mffplot, msfplot, color=dfcolor, transp=80, title="Dual Filter Fill")
+
+//Bar Color
+barcolor(barcolor)

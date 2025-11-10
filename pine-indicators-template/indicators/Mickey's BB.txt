@@ -1,0 +1,157 @@
+//@version=5
+indicator("Mickey's BB Slayer (with SL & TP)", overlay=true)
+
+// === Inputs ===
+length = input.int(30, title="SMA Period")
+mult = input.float(2.0, title="Std Dev Multiplier")
+sl_pct = input.float(0.1, title="Custom Stop Loss %")
+target_pct = input.float(0.5, title="Target %")
+engulfLookahead = input.int(5, title="Engulf Lookahead", minval=1)
+min_bb_width = input.float(0.005, title="Min Band Width", tooltip="e.g. 0.005 = 0.5%")
+
+// === Bollinger Bands
+basis = ta.sma(close, length)
+dev = mult * ta.stdev(close, length)
+upper = basis + dev
+lower = basis - dev
+bb_width = (upper - lower) / basis
+
+plot(basis, color=color.black)
+fill(plot(upper, color=color.white), plot(lower, color=color.blue), color=color.new(color.gray, 90))
+
+// === Engulf Logic
+isRed(i) => close[i] < open[i]
+isGreen(i) => close[i] > open[i]
+bullishEngulf(curr, prev) => isGreen(curr) and isRed(prev) and close[curr] > open[prev] and open[curr] <= close[prev]
+bearishEngulf(curr, prev) => isRed(curr) and isGreen(prev) and close[curr] < open[prev] and open[curr] >= close[prev]
+
+// === True Range for spacing
+tr = ta.tr(true)
+
+// === BUY SIGNAL
+var int buyTouchIndex = na
+var bool buyFired = false
+var bool buySignal = false
+var float buyCandleSL = na
+
+if (low <= lower)
+    buyTouchIndex := bar_index
+    buyFired := false
+
+buySignal := false
+withinBuyWindow = not na(buyTouchIndex) and bar_index <= buyTouchIndex + engulfLookahead
+
+if withinBuyWindow and not buyFired and bb_width >= min_bb_width
+    if bullishEngulf(0, 1) and close > lower
+        buySignal := true
+        buyFired := true
+        buyCandleSL := close[1]  // red candle body low
+    else
+        for i = 1 to engulfLookahead
+            if bullishEngulf(0, i) and close > lower
+                buySignal := true
+                buyFired := true
+                buyCandleSL := close[i]  // red candle body low
+
+if not na(buyTouchIndex) and bar_index > buyTouchIndex + engulfLookahead
+    buyTouchIndex := na
+    buyFired := false
+
+// === SELL SIGNAL
+var int sellTouchIndex = na
+var bool sellFired = false
+var bool sellSignal = false
+var float sellCandleSL = na
+
+if (high >= upper)
+    sellTouchIndex := bar_index
+    sellFired := false
+
+sellSignal := false
+withinSellWindow = not na(sellTouchIndex) and bar_index <= sellTouchIndex + engulfLookahead
+
+if withinSellWindow and not sellFired and bb_width >= min_bb_width
+    if bearishEngulf(0, 1) and close < upper
+        sellSignal := true
+        sellFired := true
+        sellCandleSL := close[1]  // green candle body high
+    else
+        for i = 1 to engulfLookahead
+            if bearishEngulf(0, i) and close < upper
+                sellSignal := true
+                sellFired := true
+                sellCandleSL := close[i]  // green candle body high
+
+if not na(sellTouchIndex) and bar_index > sellTouchIndex + engulfLookahead
+    sellTouchIndex := na
+    sellFired := false
+
+// === Trade State
+var float buyEntry = na
+var float sellEntry = na
+var bool buyActive = false
+var bool sellActive = false
+
+// === Labels
+labelStyle(txt, y, up, bgcolor, textcolor) => label.new(bar_index, y, txt, style=up ? label.style_label_up : label.style_label_down, color=bgcolor, textcolor=textcolor, size=size.small)
+
+if barstate.isconfirmed
+    if buySignal
+        buyEntry := close
+        buyActive := true
+        sellActive := false
+        labelStyle("BUY 🟢", low - tr * 0.5, true, color.new(color.blue, 50), color.white)
+
+    if sellSignal
+        sellEntry := close
+        sellActive := true
+        buyActive := false
+        labelStyle("SELL 🔴", high + tr * 0.5, false, color.new(color.white, 50), color.black)
+
+// === SL/Target calculations
+longSL = buyEntry * (1 - sl_pct / 100)
+longTarget = buyEntry * (1 + target_pct / 100)
+shortSL = sellEntry * (1 + sl_pct / 100)
+shortTarget = sellEntry * (1 - target_pct / 100)
+
+// === SL Hit Types
+slHitBuyCustom = buyActive and close < longSL
+slHitBuyCandle = buyActive and not na(buyCandleSL) and close < buyCandleSL
+slHitSellCustom = sellActive and close > shortSL
+slHitSellCandle = sellActive and not na(sellCandleSL) and close > sellCandleSL
+
+// === Show SL/Target Labels
+if slHitBuyCustom
+    labelStyle("❌ (Custom)", low - tr * 0.5, true, color.new(color.white, 50), color.black)
+    buyActive := false
+    buyEntry := na
+else if slHitBuyCandle
+    labelStyle("❌ (Candle)", low - tr * 0.5, true, color.new(color.white, 50), color.black)
+    buyActive := false
+    buyEntry := na
+
+if slHitSellCustom
+    labelStyle("❌ (Custom)", high + tr * 0.5, false, color.new(color.white, 50), color.black)
+    sellActive := false
+    sellEntry := na
+else if slHitSellCandle
+    labelStyle("❌ (Candle)", high + tr * 0.5, false, color.new(color.white, 50), color.black)
+    sellActive := false
+    sellEntry := na
+
+// === Target Hits
+if buyActive and close > longTarget
+    labelStyle("🎯", high + tr * 0.5, false, color.new(color.blue, 0), color.white)
+    buyActive := false
+    buyEntry := na
+
+if sellActive and close < shortTarget
+    labelStyle("🎯", low - tr * 0.5, true, color.new(color.blue, 0), color.white)
+    sellActive := false
+    sellEntry := na
+
+// === Alerts
+alertcondition(buySignal, "Buy Signal", "🟢 BUY Signal")
+alertcondition(sellSignal, "Sell Signal", "🔴 SELL Signal")
+alertcondition(slHitBuyCustom or slHitBuyCandle or slHitSellCustom or slHitSellCandle, "SL Hit", "SL HIT")
+alertcondition(close > longTarget or close < shortTarget, "Target Hit", "TARGET HIT")
