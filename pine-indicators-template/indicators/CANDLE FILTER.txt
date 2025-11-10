@@ -1,0 +1,245 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © MINTYFRESH97
+
+//@version=5
+indicator("CANDLE FIlTER" ,overlay=true )
+
+//user input
+var g_ema    = "EMA Filter"
+
+emaLength    = input.int(title="EMA Length For Pullback ", defval=100, tooltip="Length of the EMA filter for Pullback", group=g_ema)
+useEmaFilterPBD = input.bool(title="Use EMA Filter Pullback D?", defval=false, tooltip="Turns on/off the EMA filter", group=g_ema)
+
+emaLengthPullback6H= input.int(title="EMA Length for Pullback 4h", defval=100, tooltip="Length of the EMA filter for Pullback 6h", group=g_ema)
+useEmaFilterPB6H = input.bool(title="Use EMA Filter for Pullback?", defval=false, tooltip="Turns on/off the EMA filter", group=g_ema)
+
+emaLengthPullback1H  = input.int(title="EMA Length for Pullback1H", defval=200, tooltip="Length of the EMA filter for Pullback 1h", group=g_ema)
+useEmaFilterPB1H = input.bool(title="Use EMA Filter for Pullback1H?", defval=false, tooltip="Turns on/off the EMA filter", group=g_ema)
+
+
+emaLengthRallyD   = input.int(title="EMA Length for Rally D", defval=100, tooltip="Length of the EMA filter for Rally D", group=g_ema)
+useEmaFilterD = input.bool(title="Use EMA Filter for Rally?", defval=false, tooltip="Turns on/off the EMA filter", group=g_ema)
+
+emaLengthRally6H  = input.int(title="EMA Length for Rally 4H", defval=100, tooltip="Length of the EMA filter for Rally D", group=g_ema)
+useEmaFilterRally6H = input.bool(title="Use EMA Filter for Rally 6H?", defval=false, tooltip="Turns on/off the EMA filter", group=g_ema)
+
+emaLengthRally1H  = input.int(title="EMA Length for Rally 1H", defval=100, tooltip="Length of the EMA filter for Rally D", group=g_ema)
+useEmaFilterRally1H = input.bool(title="Use EMA Filter for Rally 1H?", defval=false, tooltip="Turns on/off the EMA filter", group=g_ema)
+
+movingAverage = input.bool(title="Moving Averages", defval=true, tooltip="Turns on/off the EMA filter", group=g_ema)
+
+
+
+emaLength9   = input.int(title="9ema Candle Layouth", defval=9, tooltip="9ema Candle Layout", group=g_ema)
+useEmaFilter = input.bool(title="9ema Candle Layout?", defval=false, tooltip="Turns on/off the 9EMA  Candle filter", group=g_ema)
+
+///////////////////////////////
+ema = ta.ema(close, emaLength)
+
+///////PULLBACK  DAILY //////////////////////////////////////////////
+
+// Get EMA filter
+
+emaPBD = ta.ema(close, emaLength)
+emaFilterLongPBD = not useEmaFilterPBD or close > ema
+
+//swing high/low filter
+swingLowX = low == ta.lowest(low,4) or low[1] ==ta.lowest(low,4)
+
+//Candle 
+pullBack1=  (close[3] < close[4]) and (close[2] < close[3])
+     and (close[1] < close[2]) and (close > close[1]) and emaLength and swingLowX and timeframe.isdaily
+     
+
+//////RallycandleDAILY
+emashortD = ta.ema(close, emaLengthRallyD)
+emaFilterShortD = not useEmaFilterD or close < emashortD
+
+//swing high/low filter
+swingHigh = high == ta.highest(high,5) or high[1] == ta.highest(high,5)
+
+///candle 
+RallieCandle = (close[2] > close[3]) and (close[1] > close[2]) and
+     (close < close[1]) and emaFilterShortD and swingHigh and timeframe.isdaily
+///////////////////////////////////////////////////////////////
+
+////PULLBACK6H
+emaPB6H = ta.ema(close, emaLength)
+emaFilterLongPB6H = not useEmaFilterPB6H or close > emaPB6H
+
+//swing high/low filter
+swingLow = low == ta.lowest(low,9) or low[1] ==ta.lowest(low,9)
+
+////candle
+pullBack = (close[3] < close[4]) and (close[2] < close[3])
+     and (close[1] < close[2]) and (close > close[1]) and emaFilterLongPB6H and swingLow
+
+////RALLYCANDLE6H
+emashort = ta.ema(close, emaLengthRally6H)
+swingHighx = high == ta.highest(high,8) or high[1] == ta.highest(high,8)
+//swing high/low filter
+emaFilterShort6H = not useEmaFilterRally6H or close < emashort
+///Candle 
+RallieCandle6h = (close[3] > close[4]) and (close[2] > close[23]) and
+     (close < close[1])  and swingHighx and emaFilterShort6H
+     
+     /////////////////////////////////////////////////////////////
+
+////PULLBACK1H
+emaPB1H = ta.ema(close, emaLength)
+emaFilterLongPB1H = not useEmaFilterPB1H or close > emaPB1H
+
+//swing high/low filter
+swingLowY = low == ta.lowest(low,22) or low[1] ==ta.lowest(low,22) 
+
+//candle
+pullBack1H =  (close[3] < close[4]) and (close[2] < close[3])
+     and (close[1] < close[2]) and (close > close[1]) and swingLowY and emaFilterLongPB1H and timeframe.isintraday
+     
+
+///RALLYCANDLE1H
+emaRally1H = ta.ema(close, emaLengthRally1H)
+emaFilterShortRally1H = not useEmaFilterRally1H or close > emaRally1H
+
+swingHighZ = high == ta.highest(high,22) or high[1] == ta.highest(high,22)
+
+RallieCandle1h = (close[3] > close[4]) and (close[2] > close[3]) and
+     (close < close[1]) and emaFilterShortRally1H and swingHighZ 
+     
+ //////Hammers
+ // Get user input
+fibLevel    = input.float(title="Fib Level", defval=0.5)
+colorFilter = input.bool(title="Color Filter", defval=false)
+
+//swing high/low filter 
+swingLowH = low == ta.lowest(low,6) or low[1] ==ta.lowest(low,6)
+     
+ // Calculate fibonacci level for current candle
+bullFib = (low - high) * fibLevel + high
+
+// Determine which price source closes or opens highest/lowest
+lowestBody  = close < open ? close : open    
+
+
+ // Determine if we have a valid hammer or shooting star candle
+hammerCandle = lowestBody >= bullFib and not colorFilter and (close > open)
+     and (close[1] < close[2]) and (close > close[1]) and swingLowH and close  
+
+////////INDECISION 
+// Get user input
+maxWickSize = input.float(title="Max Wick Size", defval=2)
+maxBodySize = input.float(title="Max Body Size", defval=0.25)
+
+// Get candle data
+topWickSize = high - (close > open ? close : open)
+bottomWickSize = (close < open ? close : open) - low
+bodyPercent = math.abs(open - close) / (high - low)
+
+//swing high
+swingHigh1 = high == ta.highest(high,15) or high[1] == ta.highest(high,15)
+
+// Get our filters
+swingLow1 = low == ta.lowest(low,15) or low[1] ==ta.lowest(low,15)
+
+// Determine if the current bar is a valid doji candle
+doji = bottomWickSize <= topWickSize * maxWickSize and bodyPercent <= maxBodySize
+dojiBear = doji and swingHigh1
+
+
+doji1 = bottomWickSize <= topWickSize * maxWickSize and bodyPercent <= maxBodySize
+dojiBull1 = doji and swingLow1
+
+     
+//////////////////////////////////////////////////////////////RALLY CANDLE 
+// Plot our Rally D Pattern
+plotshape(RallieCandle, title='Rally Candle Daily' , style=shape.xcross,size=size.tiny, color=color.red, text="Rally/D" ,location=location.abovebar)
+barcolor (RallieCandle ? color.red :na)
+alertcondition(RallieCandle, "RallieCandle", "RallieCandle detected for {{ticker}}")
+
+// Plot our Rally 6h Pattern
+plotshape(RallieCandle6h, title='Rally Candle 4H' , style=shape.xcross,size=size.tiny, color=color.red, text="Rally/LTF",location=location.abovebar)
+alertcondition(RallieCandle6h, "RallieCandle 4H", "RallieCandle detected for {{ticker}}")
+
+
+
+// Plot our Rally 1H Pattern
+barcolor(RallieCandle1h ? color.red :na)
+plotshape(RallieCandle1h, title='Rally Candle 1H' , style=shape.diamond,size=size.tiny, text="Rally/LTF", color=color.red,location=location.abovebar)
+alertcondition(RallieCandle1h, "RallieCandle", "RallieCandle detected for {{ticker}}")
+
+//////////////////////////////////////////////////////////////PULLBACKS
+
+// Plot our Pullback D pattern
+plotshape(pullBack1, title='Pullback Candle D' , style=shape.xcross,size=size.tiny, color=color.green,text="PB/D",location=location.belowbar)
+alertcondition(pullBack1, "Pullback Candle D ", "Pullback Candle DAILY detected for {{ticker}}")
+barcolor(pullBack1 ? color.green :na)
+
+
+// Plot our Pullback 6H pattern
+plotshape(pullBack, title='Pullback Candle 4H' ,style=shape.xcross,size=size.tiny, color=color.green, text="PB4H",location=location.belowbar)
+alertcondition(pullBack, "Pullback Candle 4H ", "Pullback Candle 4H  detected for {{ticker}}")
+barcolor(pullBack ? color.green :na)
+
+// Plot our Pullback 1H pattern
+plotshape(pullBack1H, title='Pullback Candle 1H' , style=shape.xcross,size=size.tiny, text = "PB1H", color=color.green,location=location.belowbar)
+alertcondition(pullBack1H, "Pullback Candle 1H ", "Pullback Candle 1H detected for {{ticker}}")
+barcolor(pullBack1H ? color.green :na)
+
+///////////////////////////////////////////////HAMMERS 
+// Plot our candle patterns
+plotshape(hammerCandle, style=shape.triangleup, size=size.tiny, title="Hammers" , text="H",color=color.green, location=location.belowbar, color=color.green)
+alertcondition(hammerCandle, "Hammer", "hammerCandle detected for {{ticker}}")
+barcolor(hammerCandle ? color.green:na)
+
+
+
+/////////////////////////////////////////////INDECISION 
+// Draw dojis onto the chartcolor.green
+alertcondition(dojiBear, "Bearish Doji", "Bearish Doji detected for {{ticker}}")
+plotshape(dojiBear, style=shape.cross,title="Bearish Doji", color=color.purple, text="I", location=location.abovebar)
+barcolor(dojiBear ? color.purple :na)
+
+
+plotshape(dojiBull1, style=shape.cross,title="Bullish Doji", color=color.purple, text="I", location=location.abovebar)
+barcolor(dojiBull1 ? color.purple :na)
+alertcondition(dojiBull1, "Bullish Doji", "Bullish Doji detected for {{ticker}}")
+
+
+
+////EMA
+shortlen = input.int(50, "Short MA Length", minval=1)   
+longlen = input.int(200, "Long MA Length", minval=1)
+short = ta.ema(close, shortlen)
+long = ta.ema(close, longlen)
+plot(short, title="Short ema", color = #FF6D00)
+plot(long, title="Long ema",  color = #43A047)
+
+plot(ta.cross(short, long) ? short : na, color=#2962FF, style = plot.style_circles, linewidth = 4)
+bgcolor(ta.cross(short, long) ? color.new(color.purple, 85) : na)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

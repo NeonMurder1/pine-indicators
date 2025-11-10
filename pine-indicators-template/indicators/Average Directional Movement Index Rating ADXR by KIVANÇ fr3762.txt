@@ -1,0 +1,35 @@
+
+//developer: J.Welles Wilder
+//author: KıvanÇ @fr3762 on twitter
+
+study("Average Directional Movement Index Rating", shorttitle="ADXR")
+len=input(14,"ADX length?",type=integer, minval=1)
+lenX=input(14,"ADXR length?",type=integer, minval=1)
+adx = input(false, title="Show ADX?")
+DIp = input(false, title="Show DI Plus?")
+DIm = input(false, title="Show DI Minus?")
+
+
+
+TrueRange = max(max(high-low, abs(high-nz(close[1]))), abs(low-nz(close[1])))
+DMP = high-nz(high[1]) > nz(low[1])-low ? max(high-nz(high[1]), 0): 0
+DMM = nz(low[1])-low > high-nz(high[1]) ? max(nz(low[1])-low, 0): 0
+
+
+SmoothedTrueRange = nz(SmoothedTrueRange[1]) - (nz(SmoothedTrueRange[1])/len) + TrueRange
+SmoothedDMP = nz(SmoothedDMP[1]) - (nz(SmoothedDMP[1])/len) + DMP
+SmoothedDMM = nz(SmoothedDMM[1]) - (nz(SmoothedDMM[1])/len) + DMM
+
+DIPlus = SmoothedDMP / SmoothedTrueRange * 100
+DIMinus = SmoothedDMM / SmoothedTrueRange * 100
+DX = abs(DIPlus-DIMinus) / (DIPlus+DIMinus)*100
+ADX = sma(DX, len)
+ADXR= (ADX + ADX[lenX])/2
+
+plot(ADXR, color=maroon, linewidth=2)
+plot(adx and ADX ? ADX : na, color=blue, linewidth=2, title="ADX")
+plot(DIp and DIPlus ? DIPlus : na, color=green, linewidth=2, title="DI+")
+plot(DIm and DIMinus ? DIMinus : na, color=red, linewidth=2, title="DI-")
+
+
+

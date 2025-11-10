@@ -1,0 +1,17 @@
+//@version=2
+//creator: Charles Le Beau 
+//author:KIVANÇ @fr3762 on twitter
+study("Chandelier Exit V2", overlay = true)
+
+
+length=input(22, minval=1,maxval = 100)
+AtrPeriods=input(22, minval=1,maxval = 100)
+Mult=input(3, minval=1,maxval = 100)
+
+
+LongStop=highest(high,length)-(Mult*atr(AtrPeriods))
+ShortStop=lowest(low,length)+(Mult*atr(AtrPeriods))
+
+
+plot(ShortStop, color =red , style = line , linewidth = 2,title = "ShortStop")
+plot(LongStop, color =green , style = line , linewidth = 2,title = "LongStop")

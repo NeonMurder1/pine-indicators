@@ -1,0 +1,57 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © ActiveQuants
+// Created by ActiveQuants
+// Last updated: March 13, 2025
+
+//@version=6
+indicator(title = "Consolidation Zones [ActiveQuants]", overlay = true, max_boxes_count = 500)
+
+//#region ------ USER INPUTS
+int minZoneLength = input.int(defval = 20, title = "Minimum Zone Length", minval = 1, tooltip = "This value represents the SMA Length but it is also used to represent the minimum number of consecutive bars that have to fulfill the condition to be part of a consolidation zone.")
+color zoneColor = input.color(defval = color.new(color.gray, 50), title = "Range Color")
+int atrLength = input.int(defval = 200, title = "ATR Length", minval = 1)
+int showLast = input.int(defval = 500, title = "Show Last", minval = 10, step = 10, tooltip = "Number of bars back the indicator can plot.")
+//#endregion
+
+//#region ----- VARIABLES
+var box bx = na
+var array<box> boxes = array.new_box()
+
+var float max = na
+var float min = na
+
+float atr = ta.atr(atrLength)
+float sma = ta.sma(close, minZoneLength)
+//#endregion
+
+//#region ----- PLOTTING
+int count = 0
+for i = 0 to minZoneLength - 1
+    count += math.abs(close[i] - sma) > atr ? 1 : 0
+
+if count == 0 and count[1] != count
+    if bar_index[minZoneLength] <= bx.get_right()
+        max := math.max(sma + atr, bx.get_top())
+        min := math.min(sma - atr, bx.get_bottom())
+        
+        bx.set_top(max)
+        bx.set_rightbottom(bar_index, min)
+        bx.set_bgcolor(zoneColor)
+
+    else
+        max := sma + atr
+        min := sma - atr
+
+        bx := box.new(left = bar_index[minZoneLength], top = max, right = bar_index, bottom = min, border_color = na, bgcolor = zoneColor)
+        boxes.push(bx)
+
+else if count == 0
+    bx.set_right(bar_index)
+
+if array.size(boxes) > 0
+    for i = array.size(boxes) - 1 to 0
+        currentBox = array.get(boxes, i)
+        if box.get_left(currentBox) < bar_index - showLast
+            box.delete(currentBox)
+            array.remove(boxes, i)
+//#endregion

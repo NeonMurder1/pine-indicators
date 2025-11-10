@@ -1,0 +1,63 @@
+//@version=5
+indicator(title="BooBee Digital - Enhanced Buy & Sell Alerts Suite", overlay=true)
+
+// Inputs for sensitivity and ATR period
+sensitivity = input.int(1, title="Sensitivity")
+atrPeriod = input.int(10, title="ATR Period")
+
+// ATR Calculation
+atr = ta.atr(atrPeriod)
+nLoss = sensitivity * atr
+
+// Source Selection
+src = close
+
+// ATR Trailing Stop Calculation
+var float atrTrailingStop = na
+atrTrailingStop := src > nz(atrTrailingStop[1], 0) and src[1] > nz(atrTrailingStop[1], 0) ? math.max(nz(atrTrailingStop[1]), src - nLoss) :
+                   src < nz(atrTrailingStop[1], 0) and src[1] < nz(atrTrailingStop[1], 0) ? math.min(nz(atrTrailingStop[1]), src + nLoss) :
+                   src > nz(atrTrailingStop[1], 0) ? src - nLoss : src + nLoss
+
+// Position Calculation
+var int pos = 0
+pos := src[1] < nz(atrTrailingStop[1], 0) and src > nz(atrTrailingStop[1], 0) ? 1 :
+       src[1] > nz(atrTrailingStop[1], 0) and src < nz(atrTrailingStop[1], 0) ? -1 : nz(pos[1], 0)
+
+// Signal Colors
+xcolor = pos == -1 ? color.red : pos == 1 ? color.green : color.blue
+
+// EMA Calculation
+ema = ta.ema(src, 1)
+above = ta.crossover(ema, atrTrailingStop)
+below = ta.crossover(atrTrailingStop, ema)
+
+// Buy and Sell Conditions
+buy = src > atrTrailingStop and above
+sell = src < atrTrailingStop and below
+
+// Plot Buy and Sell Signals
+plotshape(series=buy, title="Buy", text='Buy', style=shape.labelup, location=location.belowbar, color=color.green, textcolor=color.white, size=size.small)
+plotshape(series=sell, title="Sell", text='Sell', style=shape.labeldown, location=location.abovebar, color=color.red, textcolor=color.white, size=size.small)
+
+// Bar Colors
+barcolor(src > atrTrailingStop ? color.new(color.green, 50) : na)
+barcolor(src < atrTrailingStop ? color.new(color.red, 50) : na)
+
+// Alert Conditions
+alertcondition(condition=buy, title="Buy Alert", message="UT Buy Signal")
+alertcondition(condition=sell, title="Sell Alert", message="UT Sell Signal")
+
+// VWAP Calculation
+var float sumSrcVol = na
+var float sumVol = na
+if (na(sumSrcVol) or na(sumVol) or ta.change(time("D"))) 
+    sumSrcVol := 0.0
+    sumVol := 0.0
+
+sumSrcVol := sumSrcVol + (src * volume)
+sumVol := sumVol + volume
+
+vwap = sumSrcVol / sumVol
+
+// Plot VWAP
+plot(vwap, title="VWAP", color=color.blue, linewidth=2)

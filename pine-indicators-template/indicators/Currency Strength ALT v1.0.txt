@@ -1,0 +1,120 @@
+//@version=4
+
+study("Currency Strength ALT v1.0", shorttitle="Currency Strength ALT", overlay=false, max_bars_back=100)
+
+//
+// Author: JustUncleL
+// Date: 10 Nov 2019
+//
+// Description:
+//    This study is a version of Currency Strength Meter, that utilises TradingViews
+//    built-in 8 Currency indices (?XY), rather calculate them from currency pair values.
+//    It also utilises the built-in TSI function, the TSI uses moving averages 
+//    of the underlying momentum of a financial instrument.
+//    The advantage of using the Currency Indices for strength is the fact that they 
+//    are based on multiple Exchange sources and so hopefully making it more
+//    representative.
+//
+//    ***WARNING*** The TradingView Currency Indices do tend to have gaps between candles
+//    especially on the low volume currencies like NZD and AUD, so strength chart can
+//    also jump around. I suggest using the indicator with higher TF (4H+) charts.
+//
+// Modifications:
+//    10-Nov-2019 
+//      - v1.0 Original version
+//
+// References:
+//      - 8 Pair Strength R2.0 updated by JustUncleL
+//      - https://www.tradingview.com/markets/currencies/indices-all/
+//
+// -----------------------------------------------------------------------------
+// Copyright 2019 JustUncleL
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// The GNU General Public License can be found here
+// <http://www.gnu.org/licenses/>.
+//
+// -----------------------------------------------------------------------------
+
+
+// === INPUTS ===
+
+fast = input(5, minval=1, maxval=50, title="TSI slow MA period")
+slow = input(13, minval=2, maxval=100, title="TSI slow MA period")
+src  = input(hl2, title="Index Source")
+ShowLabels = input(true)
+ShowFixed = input(true, title="Show labels as a Fixed List, instead of Strength following")
+
+// === /INPUTS ===
+
+// === SERIES ===
+// Current source from each indice
+USD = security("DXY", timeframe.period, src, barmerge.gaps_off, barmerge.lookahead_on)
+EUR = security("EXY", timeframe.period, src, barmerge.gaps_off, barmerge.lookahead_on)
+NZD = security("ZXY", timeframe.period, src, barmerge.gaps_off, barmerge.lookahead_on)
+AUD = security("AXY", timeframe.period, src, barmerge.gaps_off, barmerge.lookahead_on)
+JPY = security("JXY", timeframe.period, src, barmerge.gaps_off, barmerge.lookahead_on)
+CHF = security("SXY", timeframe.period, src, barmerge.gaps_off, barmerge.lookahead_on)
+CAD = security("CXY", timeframe.period, src, barmerge.gaps_off, barmerge.lookahead_on)
+GBP = security("BXY", timeframe.period, src, barmerge.gaps_off, barmerge.lookahead_on)
+
+// Use True Strength Index, to calculate Currency Strength.
+eur = tsi(EUR, fast, slow)
+gbp = tsi(GBP, fast, slow)
+jpy = tsi(JPY, fast, slow)
+usd = tsi(USD, fast, slow)
+aud = tsi(AUD, fast, slow)
+cad = tsi(CAD, fast, slow)
+chf = tsi(CHF, fast, slow)
+nzd = tsi(NZD, fast, slow)
+
+// === /SERIES ===
+
+// === PLOTTING ===
+
+// Plot Strength on chart
+plot(aud, color=color.blue, title='AUD', linewidth=2, transp=0, join=true)
+plot(cad, color=color.fuchsia, title='CAD', linewidth=2, transp=0, join=true)
+plot(chf, color=color.black, title='CHF', linewidth=2, transp=0, join=true)
+plot(eur, color=color.orange, title='EUR', linewidth=2, transp=0, join=true)
+plot(gbp, color=color.teal, title='GBP', linewidth=2, transp=0, join=true)
+plot(jpy, color=color.red, title='JPY', linewidth=2, transp=0, join=true)
+plot(nzd, color=color.aqua, title='NZD', linewidth=2, transp=0, join=true)
+plot(usd, color=color.green, title='USD', linewidth=2, transp=0, join=true)
+
+hline(0, "Zero", color=color.navy, linestyle=hline.style_dotted, linewidth=2)
+hline(0.5, "Upper Line", color=color.gray, linestyle=hline.style_dashed, linewidth=1)
+hline(-0.5, "Lower Line", color=color.gray, linestyle=hline.style_dashed, linewidth=1)
+//
+Fixed = ShowFixed and ShowLabels and barstate.islast
+plotshape(Fixed ? 0.4 : na, location=location.absolute, style=shape.labeldown, title="AUD txt", color=color.blue, text="AUD", textcolor=color.white, show_last=1, transp=0, offset=5, size=size.auto)
+plotshape(Fixed ? 0.275 : na, location=location.absolute, style=shape.labeldown, title="CAD txt", color=color.fuchsia, text="CAD", textcolor=color.white, show_last=1, transp=0, offset=5, size=size.auto)
+plotshape(Fixed ? 0.15 : na, location=location.absolute, style=shape.labeldown, title="CHF txt", color=color.black, text="CHF", textcolor=color.white, show_last=1, transp=0, offset=5, size=size.auto)
+plotshape(Fixed ? 0.025 : na, location=location.absolute, style=shape.labeldown, title="EUR txt", color=color.orange, text="EUR", textcolor=color.white, show_last=1, transp=0, offset=5, size=size.auto)
+plotshape(Fixed ? -0.025 : na, location=location.absolute, style=shape.labelup, title="GBP txt", color=color.teal, text="GBP", textcolor=color.white, show_last=1, transp=0, offset=5, size=size.auto)
+plotshape(Fixed ? -0.150 : na, location=location.absolute, style=shape.labelup, title="JPY txt", color=color.red, text="JPY", textcolor=color.white, show_last=1, transp=0, offset=5, size=size.auto)
+plotshape(Fixed ? -0.275 : na, location=location.absolute, style=shape.labelup, title="NZD txt", color=color.aqua, text="NZD", textcolor=color.white, show_last=1, transp=0, offset=5, size=size.auto)
+plotshape(Fixed ? -0.4 : na, location=location.absolute, style=shape.labelup, title="USD txt", color=color.green, text="USD", textcolor=color.white, show_last=1, transp=0, offset=5, size=size.auto)
+//
+Dynamic = not ShowFixed and ShowLabels and barstate.islast
+plotshape(Dynamic ? aud : na, location=location.absolute, style=shape.labeldown, title="AUD txt", color=color.blue, text="AUD", textcolor=color.white, show_last=1, transp=0, offset=2)
+plotshape(Dynamic ? cad : na, location=location.absolute, style=shape.labeldown, title="CAD txt", color=color.fuchsia, text="CAD", textcolor=color.white, show_last=1, transp=0, offset=2)
+plotshape(Dynamic ? chf : na, location=location.absolute, style=shape.labeldown, title="CHF txt", color=color.black, text="CHF", textcolor=color.white, show_last=1, transp=0, offset=2)
+plotshape(Dynamic ? eur : na, location=location.absolute, style=shape.labeldown, title="EUR txt", color=color.orange, text="EUR", textcolor=color.white, show_last=1, transp=0, offset=2)
+plotshape(Dynamic ? gbp : na, location=location.absolute, style=shape.labeldown, title="GBP txt", color=color.teal, text="GBP", textcolor=color.white, show_last=1, transp=0, offset=2)
+plotshape(Dynamic ? jpy : na, location=location.absolute, style=shape.labeldown, title="JPY txt", color=color.red, text="JPY", textcolor=color.white, show_last=1, transp=0, offset=2)
+plotshape(Dynamic ? nzd : na, location=location.absolute, style=shape.labeldown, title="NZD txt", color=color.aqua, text="NZD", textcolor=color.white, show_last=1, transp=0, offset=2)
+plotshape(Dynamic ? usd : na, location=location.absolute, style=shape.labeldown, title="USD txt", color=color.green, text="USD", textcolor=color.white, show_last=1, transp=0, offset=2)
+
+// === /PLOTTING ===
+
+//eof

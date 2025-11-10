@@ -1,0 +1,28 @@
+// [pine]
+//@version=5
+//© kingthies || This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+indicator('Consolidation Ranges [kingthies]', shorttitle='CR [kingthies]', overlay=true)
+
+// !<------ User Inputs -----> 
+src = input(close, title='Range Input (Default set to Close')
+lengthEMA = input(30, title='Length')
+zoneToggle = input(true, title='Toggle Zone Highlights')
+iCol = color.new(#FFFFFF, 100)
+
+// !<---- Declarations & Calculations ---- > 
+trndUp = float(na)
+trndDwn = float(na)
+mid = float(na)
+e = ta.ema(src, lengthEMA)
+trndUp := src < nz(trndUp[1]) and src > trndDwn[1] ? nz(trndUp[1]) : high
+trndDwn := src < nz(trndUp[1]) and src > trndDwn[1] ? nz(trndDwn[1]) : low
+mid := math.avg(trndUp, trndDwn)
+
+// !< ---- Plotting -----> 
+highRange = plot(trndUp == nz(trndUp[1]) ? trndUp : na, color=color.new(color.white, 0), linewidth=2, style=plot.style_linebr, title='Top of Period Range')
+lowRange = plot(trndDwn == nz(trndDwn[1]) ? trndDwn : na, color=color.new(color.white, 0), linewidth=2, style=plot.style_linebr, title='Bottom of Period Range')
+xzone = plot(zoneToggle ? src > e ? trndDwn : trndUp : na, color=iCol, style=plot.style_circles, linewidth=0, editable=false)
+fill(highRange, xzone, color=color.new(color.lime, 70))
+fill(xzone, lowRange, color=color.new(color.red, 70))
+//[/pine]
+

@@ -1,0 +1,71 @@
+//@version=5
+indicator(title="Combined Indicator: Solar EMA and BWMA", shorttitle="Solar EMA/BWMA", overlay=true)
+
+// Input for Solar EMA
+ema_length = input(14, title="EMA Length")
+ema_src = close
+ema_color_bull = color.green
+ema_color_bear = color.red
+ema_color_neutral = color.yellow
+
+// Input for BWMA
+bwma_length = input(50, title="BWMA Length")
+bwma_beta = input.float(3.0, title="BWMA - Lag")
+bwma_alpha = input.float(3.0, title="BWMA + Lag")
+bwma_src = close
+bwma_color = color.blue
+
+// Calculate EMA
+ema_value = ta.ema(close, ema_length)
+
+// Determine EMA trend
+ema_trend = ema_value > ema_value[1] ? 1 : ema_value < ema_value[1] ? -1 : 0
+
+// Plot EMA
+plot_color = ema_trend == 1 ? ema_color_bull : ema_trend == -1 ? ema_color_bear : ema_color_neutral
+plot(ema_value, color=plot_color, linewidth=2, title="Solar EMA")
+
+// BWMA calculation
+beta = bwma_beta
+alpha = bwma_alpha
+var b = array.new_float(0)
+var css = array.new_color(na)
+if barstate.isfirst
+    for i = 0 to bwma_length - 1
+        x = i / (bwma_length - 1)
+        w = x
+        for j = 1 to alpha - 1
+            w := w * x
+        for j = 1 to beta - 1
+            w := w * (1 - x)
+        array.push(b, w)
+    array.push(css, #FF1100)
+    array.push(css, #FF1200)
+
+den = array.sum(b)
+sum = 0.0
+for i = 0 to bwma_length - 1
+    sum := sum + bwma_src[i] * array.get(b, i)
+filt = sum / den
+
+plot(filt, "BWMA", color=bwma_color, linewidth=2)
+
+// Detect potential trend changes and plot dots
+ema_trend_changed = ema_trend != ema_trend[1]
+rsi = ta.rsi(close, 14)
+rsi_cross_up = rsi[1] < 50 and rsi >= 50
+rsi_cross_down = rsi[1] > 50 and rsi <= 50
+significant_trend_change = ema_trend_changed and (rsi_cross_up or rsi_cross_down)
+
+// Buy and sell signals based on support and resistance levels
+lookback_period = 20
+prev_low = low[1]
+prev_high = high[1]
+support = prev_low == ta.lowest(low, lookback_period)
+resistance = high > ta.highest(high, lookback_period) * 0.99
+
+buy_signal_condition = support and ema_trend == 1 and ema_trend_changed // Buy if price hits support, EMA trend is bullish, and there's a change in trend
+sell_signal_condition = resistance and ema_trend == -1 and ema_trend_changed and high > low // Sell if price hits resistance, EMA trend is bearish, there's a change in trend, and high is above low
+
+// plotshape(buy_signal_condition ? low : na, style=shape.triangleup, location=location.belowbar, color=color.green, size=size.small)
+// plotshape(sell_signal_condition ? high : na, style=shape.triangledown, location=location.abovebar, color=color.red, size=size.small)

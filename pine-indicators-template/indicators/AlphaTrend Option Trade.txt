@@ -1,0 +1,180 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// author © KivancOzbilgic
+// developer © KivancOzbilgic
+// Modded by DeuceDavis
+
+//@version=5
+indicator('AlphaTrend Option Trade', shorttitle='AlphaTrend Option Trade', overlay=true, format=format.price, precision=2)
+coeff = input.float(1, 'Multiplier', step=0.1)
+AP = input(14, 'Common Period')
+ATR = ta.sma(ta.tr, AP)
+src = input(close)
+showsignalsk = input(title='Show Signals?', defval=true)
+novolumedata = input(title='Change calculation (no volume data)?', defval=false)
+
+
+upT = low - ATR * coeff
+downT = high + ATR * coeff
+AlphaTrend = 0.0
+AlphaTrend := (novolumedata ? ta.rsi(src, AP) >= 50 : ta.mfi(hlc3, AP) >= 50) ? upT < nz(AlphaTrend[1]) ? nz(AlphaTrend[1]) : upT : downT > nz(AlphaTrend[1]) ? nz(AlphaTrend[1]) : downT
+
+color1 = AlphaTrend > AlphaTrend[2] ? #00E60F : AlphaTrend < AlphaTrend[2] ? #80000B : AlphaTrend[1] > AlphaTrend[3] ? #00E60F : #80000B
+k1 = plot(AlphaTrend, title="AlphaTrend", color=color.new(#0022FC, 0), linewidth=3)
+k2 = plot(AlphaTrend[2], title="AlphaTrend Offset", color=color.new(#FC0400, 0), linewidth=3)
+
+fill(k1, k2, color=color1)
+
+buySignalk = ta.crossover(AlphaTrend, AlphaTrend[2])
+sellSignalk = ta.crossunder(AlphaTrend, AlphaTrend[2])
+
+K1 = ta.barssince(buySignalk)
+K2 = ta.barssince(sellSignalk)
+O1 = ta.barssince(buySignalk[1])
+O2 = ta.barssince(sellSignalk[1])
+
+plotshape(buySignalk and showsignalsk and O1 > K2 ? AlphaTrend[2] * 0.9999 : na, 
+     title='Call', text='Call', location=location.absolute, style=shape.labelup, size=size.tiny, 
+     color=color.new(#0022FC, 0), textcolor=color.new(color.white, 0))
+
+plotshape(sellSignalk and showsignalsk and O2 > K1 ? AlphaTrend[2] * 1.0001 : na, 
+     title='Put', text='Put', location=location.absolute, style=shape.labeldown, size=size.tiny, 
+     color=color.new(color.maroon, 0), textcolor=color.new(color.white, 0))
+
+//TRADING SYSTEM
+//Initialize
+
+backTestStartDate = input.time(title='Back Test From', defval=timestamp("1 Jan 2022"))
+capitalValue = input.float(defval = 100000.0, title="Amount of Capital to Risk on Trade")
+tpMoveRatio = input.float(defval = 0.50, title="Movement Ratio", step=.01)
+showBackTestResults = input.bool(defval = true, title="Show Backtest Results")
+
+var longTrades = 0
+var longWins = 0
+var longBars = 0
+var maxLongBars = 0
+var shortTrades = 0
+var shortWins = 0
+var shortBars = 0
+var maxShortBars = 0
+var stopValue = 0.0
+var tpValue = 0.0
+var sharesInTrade = 0
+var plFromTrades = 0.0
+var entryPrice = 0.0
+
+
+calcShares = math.floor(capitalValue/open)
+
+goLong = buySignalk and O1 > K2 and time >= backTestStartDate
+goShort = sellSignalk and O2 > K1 and time >= backTestStartDate
+barsLong = ta.barssince(goLong != goLong[1])
+barsShort = ta.barssince(goShort != goShort[1])
+valueMove = math.abs(AlphaTrend - close[1])
+
+if sharesInTrade > 0
+    if low <= stopValue 
+        plFromTrades := plFromTrades + (stopValue - entryPrice) * sharesInTrade
+        longBars := longBars + barsLong
+        maxLongBars := math.max(barsLong, maxLongBars)
+        sharesInTrade := 0
+
+    if high >= tpValue 
+        plFromTrades := plFromTrades + (tpValue - entryPrice) * sharesInTrade
+        sharesInTrade := 0  
+        longBars := longBars + barsLong
+        maxLongBars := math.max(barsLong, maxLongBars)
+        longWins := longWins + 1
+
+    if goShort[1]
+        plFromTrades := plFromTrades + (open - entryPrice) * sharesInTrade
+        sharesInTrade := 0  
+        longBars := longBars + barsLong
+        maxLongBars := math.max(barsLong, maxLongBars)
+        longWins := open > entryPrice ? longWins + 1 : longWins
+
+if sharesInTrade < 0
+    if low <= tpValue 
+        plFromTrades := plFromTrades + (tpValue - entryPrice) * sharesInTrade
+        sharesInTrade := 0
+        shortWins := shortWins + 1
+        shortBars := shortBars + barsShort
+        maxShortBars := math.max(barsShort, maxShortBars)
+        
+    if high >= stopValue 
+        plFromTrades := plFromTrades + (stopValue - entryPrice) * sharesInTrade
+        sharesInTrade := 0
+        shortBars := shortBars + barsShort
+        maxShortBars := math.max(barsShort, maxShortBars)
+
+    if goLong[1]
+        plFromTrades := plFromTrades + (open - entryPrice) * sharesInTrade
+        sharesInTrade := 0
+        shortWins := open < entryPrice ? shortWins + 1 : shortWins
+        shortBars := shortBars + barsShort
+        maxShortBars := math.max(barsShort, maxShortBars)
+
+if goLong[1] 
+    longTrades := longTrades + 1
+    sharesInTrade := calcShares
+    tpValue := math.ceil(open + valueMove * tpMoveRatio)
+    stopValue := AlphaTrend - valueMove
+    entryPrice := open
+    label.new(bar_index, tpValue + 1, style=label.style_label_down,  textcolor=color.white,
+          text="Buy Call\nStrike Near:  " + 
+          str.tostring(tpValue,"#") + "\nOpen:  " + str.tostring(entryPrice))
+    
+
+if goShort[1] 
+    shortTrades := shortTrades + 1
+    sharesInTrade := -calcShares
+    tpValue := math.floor(open - valueMove * tpMoveRatio)
+    stopValue := AlphaTrend + valueMove
+    entryPrice := open
+    label.new(bar_index, tpValue - 1, style=label.style_label_up, textcolor=color.white,
+          text="Buy Put\nStrike Near:  " + 
+          str.tostring(tpValue,"#") + "\nOpen:  " + str.tostring(entryPrice))
+
+
+
+inTrade = sharesInTrade != 0
+plot(not inTrade ? na : tpValue, color=color.purple, style=plot.style_linebr)
+plot(not inTrade ? na : stopValue, color=color.red, style=plot.style_linebr)
+
+var table resultsDisplay = table.new(position.bottom_right, 6, 4)
+if barstate.islast and showBackTestResults
+    table.cell(resultsDisplay, 1, 0, 'Trades', text_color=color.white)
+    table.cell(resultsDisplay, 2, 0, 'Wins', text_color=color.white)
+    table.cell(resultsDisplay, 3, 0, 'Win %', text_color=color.white)
+    table.cell(resultsDisplay, 4, 0, 'Avg Bars', text_color=color.white)
+    table.cell(resultsDisplay, 5, 0, 'Max Bars', text_color=color.white)
+    table.cell(resultsDisplay, 0, 1, 'All', text_color=color.white)
+    table.cell(resultsDisplay, 1, 1, str.tostring(longTrades + shortTrades, '#'), text_color=color.white)
+    table.cell(resultsDisplay, 2, 1, str.tostring(longWins + shortWins, '#'), text_color=color.white)
+    table.cell(resultsDisplay, 3, 1, str.tostring((longWins + shortWins)/(longTrades + shortTrades)*100, '#.#') , text_color=color.white)
+    table.cell(resultsDisplay, 4, 1, str.tostring((shortBars + longBars)/(longTrades + shortTrades), '#.#') , text_color=color.white)
+    table.cell(resultsDisplay, 5, 1, str.tostring(math.max(maxShortBars, maxLongBars), '#.#') , text_color=color.white)
+        
+    table.cell(resultsDisplay, 0, 2, 'Longs', text_color=color.white)
+    table.cell(resultsDisplay, 1, 2, str.tostring(longTrades, '#'), text_color=color.white)
+    table.cell(resultsDisplay, 2, 2, str.tostring(longWins, '#') , text_color=color.white)
+    table.cell(resultsDisplay, 3, 2, str.tostring(longWins/(longTrades)*100, '#.#') , text_color=color.white)
+    table.cell(resultsDisplay, 4, 2, str.tostring((longBars)/(longTrades ), '#.#') , text_color=color.white)
+    table.cell(resultsDisplay, 5, 2, str.tostring(maxLongBars, '#.#') , text_color=color.white)
+
+    table.cell(resultsDisplay, 0, 3, 'Shorts', text_color=color.white)
+    table.cell(resultsDisplay, 1, 3, str.tostring(shortTrades, '#'), text_color=color.white)
+    table.cell(resultsDisplay, 2, 3, str.tostring(shortWins, '#') , text_color=color.white)
+    table.cell(resultsDisplay, 3, 3, str.tostring(shortWins/(shortTrades)*100, '#.#') , text_color=color.white)
+    table.cell(resultsDisplay, 4, 3, str.tostring((shortBars)/(shortTrades ), '#.#') , text_color=color.white)
+    table.cell(resultsDisplay, 5, 3, str.tostring(maxShortBars, '#.#') , text_color=color.white)
+
+//    table.cell(resultsDisplay, 0, 4, 'P&L', text_color=color.white)
+//    table.cell(resultsDisplay, 1, 4, str.tostring(plFromTrades, '#.##'), text_color=color.white)
+//    table.cell(resultsDisplay, 2, 4, str.tostring("") , text_color=color.white)
+//    table.cell(resultsDisplay, 3, 4, str.tostring("") , text_color=color.white)
+
+
+
+
+
+

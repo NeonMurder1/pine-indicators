@@ -1,0 +1,219 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © MINTYFRESH97
+
+//@version=5
+indicator(title="Crypto Bull Run Script", overlay=true)
+
+//user inputpto Bull Run Script
+var g_ema    = "EMA Filter"
+useEmaFilterPB6H = input.bool(title="Pullback Filter EMA ?", defval=false, tooltip="Turns on/off the Pullback Candle for Pullback", group=g_ema)
+emaLengthPullback6H= input.int(title="EMA Length for Pullback ", defval=100, tooltip="Length of the EMA Pullback Candle for Pullback ", group=g_ema)
+emaLength    = input.int(title="EMA Length for Hammers", defval=100, tooltip="Length of the EMA filter for Hammers", group=g_ema)
+useEmaFilter = input.bool(title="Use EMA Filter?", defval=false, tooltip="Turns on/off the EMA filter for Hammers", group=g_ema)
+
+
+// Filter Settings
+var g_filter        = "Filter Settings"
+atrMinFilterSize    = input.float(title=">= ATR Filter", defval=0.0, minval=0.0, group=g_filter, tooltip="Minimum size of entry candle compared to ATR")
+atrMaxFilterSize    = input.float(title="<= ATR Filter", defval=3.0, minval=0.0, group=g_filter, tooltip="Maximum size of entry candle compared to ATR")
+
+/////VOLUME BREAKOUT 
+length = input.int(50, "Volume Moving average", minval=1)
+avrg = ta.ema(close, length)
+length2 = input.int(100, "Volume Moving Average", minval=1)
+avrg2 = ta.ema(volume, length2)
+
+// Check if we have confirmation of our setup
+
+bullishvolume = volume >= volume[1] * 2 and close > avrg and volume > avrg2 
+validBullishVolume = bullishvolume and barstate.isconfirmed
+// Draw price action setup arrows
+plotshape(validBullishVolume ? 1 : na,  title='//////Volume Candle//////', color=color.rgb(243, 2, 223))
+alertcondition(bullishvolume, "Bullish Volume ", "Bullish Volume detected for {{ticker}}")
+barcolor(bullishvolume ? #d112f3 :na)
+
+
+
+////PULLBACKCANDLE////////////////////////////////////////////
+emaPB6H = ta.ema(close, emaLengthPullback6H)
+emaFilterLongPB6H = not useEmaFilterPB6H or close < emaPB6H
+
+//swing high/low filter
+swingLow = low == ta.lowest(low,9) or low[1] ==ta.lowest(low,9)
+
+////candle
+pullBack6h = (close[3] < close[4]) and (close[2] < close[3])
+     and (close[1] < close[2]) and (close > close[1]) and swingLow and emaFilterLongPB6H 
+
+validPullback = pullBack6h and barstate.isconfirmed
+
+swingLow2 = low == ta.lowest(low,9) or low[1] ==ta.lowest(low,9)
+
+////candle
+pullBackv2 = (close[2] < close[3]) and (close[1] < close[2]) and (close > close[1]) and bullishvolume and swingLow2 and emaFilterLongPB6H
+ 
+validPullbackv2 = pullBackv2 and barstate.isconfirmed
+    
+//BULLISH
+//////////////////
+
+// Plot our Pullback 6H pattern
+plotshape(validPullback, title='//////Pullback Candle 6H//////' , text="P+", color=color.green, style=shape.triangleup, size=size.tiny,location=location.belowbar)
+alertcondition(validPullback, "Pullback Candle 6H ", "Pullback Candle 6H  detected for {{ticker}}")
+barcolor(validPullback ? color.green :na)
+
+plotshape(validPullbackv2, title='//////Pullback Candle 6H//////' , text="P+", color=color.green, style=shape.triangleup, size=size.tiny,location=location.belowbar)
+alertcondition(validPullbackv2, "Pullback Candle 6H ", "Pullback Candle 6H  detected for {{ticker}}")
+barcolor(validPullbackv2 ? color.blue :na)
+
+
+// Get user input
+fibLevel    = input.float(title="Fib Level For Hammer", defval=0.3)
+colorFilter = input.bool(title="Color Filter for Hammer", defval=false)
+atrFilter   = input.float(title="ATR Filter for Hammer", defval=0.1)
+
+swingLow1 = low == ta.lowest(low,10) or low[1] ==ta.lowest(low,10)
+
+// Get EMA filter
+ema = ta.ema(close, emaLength)
+emaFilterLong = not useEmaFilter or close > ema
+
+// Check our ATR filter
+atr = ta.atr(14)
+candleSize = high - low
+atrFilterCheck = candleSize >= atr * atrFilter
+
+// Calculate fibonacci level for current candle
+bullFib = (low - high) * fibLevel + high
+
+// Determine which price source closes or opens highest/lowest
+lowestBody  = close < open ? close : open
+
+// Determine if we have a valid hammer or shooting star candle
+hammerCandle = lowestBody >= bullFib and (not colorFilter or close > open) and atrFilterCheck and swingLow1 and close and emaFilterLong 
+
+validHammer = hammerCandle and barstate.isconfirmed
+plotshape(validHammer, title='//////Hammer Candle//////',style=shape.triangleup, size=size.tiny, text="H",color=color.green, location=location.belowbar, color=color.green)
+alertcondition(validHammer, "Hammer", "hammerCandle detected for {{ticker}}")
+barcolor(validHammer ? color.green:na)
+
+///exhausion candle
+i_decimal = input(defval = 2, title = "Decimal points")
+
+maj_qual = 6  //input(6)
+maj_len = 30  //input(30)
+min_qual = 5  //input(5)
+min_len = 5  //input(5)
+
+lele(qual, len) =>
+    bindex = 0.0
+    bindex := nz(bindex[1], 0)
+    sindex = 0.0
+    sindex := nz(sindex[1], 0)
+    ret = 0
+    if close > close[4]
+        bindex := bindex + 1
+        bindex
+    if close < close[4]
+        sindex := sindex + 1
+        sindex
+    if sindex > qual and close > open and low <= ta.lowest(low, len)
+        sindex := 0
+        ret := 1
+        ret
+  
+
+major = lele(maj_qual, maj_len)
+minor = lele(min_qual, min_len)
+
+MajorExaustionLow  = major ==  1 ? 1 : 0
+
+plotchar(MajorExaustionLow ?  low  : na, title="/////Leledc Exhaustion Low//////",  char='E', location=location.belowbar, color=color.black, size=size.tiny)
+barcolor(MajorExaustionLow ? color.rgb(0, 60, 255) :na)
+alertcondition(MajorExaustionLow ,"//////Exhausion Candle//////", "Exhausion Candle {{ticker}}")
+
+////////INDECISION 
+// Get user input
+maxWickSize = input.float(title="Max Wick Size for Indecision Candle", defval=2)
+maxBodySize = input.float(title="Max Body Size for Indecision Candle", defval=0.25)
+
+// Get candle data
+topWickSize = high - (close > open ? close : open)
+bottomWickSize = (close < open ? close : open) - low
+bodyPercent = math.abs(open - close) / (high - low)
+
+//swing high
+swingHighI = high == ta.highest(high,15) or high[1] == ta.highest(high,15)
+
+// Get our filters
+swingLowI = low == ta.lowest(low,15) or low[1] ==ta.lowest(low,15)
+
+doji1 = bottomWickSize <= topWickSize * maxWickSize and bodyPercent <= maxBodySize
+dojiBull1 = doji1 and swingLowI
+
+
+plotshape(dojiBull1, style=shape.cross,title="//////Indecision//////", color=color.purple, text="I", location=location.belowbar)
+barcolor(dojiBull1 ? color.orange :na)
+alertcondition(dojiBull1, "Indecision ", "Bullish Doji detected for {{ticker}}")
+
+
+
+///50EMA
+emam=ta.ema(close,50)
+col=color.white     
+
+if close > emam 
+    col := color.green
+else 
+    col := color.red
+plot(emam, linewidth=2, title="50MEA" ,color=col)
+
+///100EMA
+ema100=ta.ema(close,100)
+
+if close > ema100
+    col := color.green
+else 
+    col := color.red
+plot(ema100, linewidth=2, title="100MEA" , color=col)
+
+////200EMA
+ema200=ta.ema(close,200)
+
+if close > emam 
+    col := color.green
+else 
+    col := color.red
+plot(ema200, linewidth=2, title="200MEA" , color=col)
+
+
+
+//longsignal
+
+//-------------------------------------------------------------------------//
+//--- Key Levels
+//-------------------------------------------------------------------------//
+ 
+
+___KA___         = input(defval=true, title="| Key Levels |" )
+ 
+p_openPrice           = request.security(syminfo.tickerid, '3M', open[1])
+p_highPrice           = request.security(syminfo.tickerid, '3M', high[1])
+p_lowPrice          = request.security(syminfo.tickerid, '3M', low[1])
+p_closePrice          = request.security(syminfo.tickerid, '3M', close[1])
+ 
+plot                    (not ___KA___ ? na : p_openPrice ? p_openPrice : na, title="Major Resistance",  linewidth=3,  color=color.new(#ff5252, 0), show_last=1, trackprice=true)
+plot                    (not ___KA___ ? na : p_highPrice ? p_highPrice : na, title="Minor Resistance",  linewidth=1, color=color.new(#646665, 10), show_last=1, trackprice=true)
+plot                    (not ___KA___ ? na : p_lowPrice  ? p_lowPrice :  na, title="Minor Support",  linewidth=1, color=color.new(#646665, 10), show_last=1, trackprice=true)
+plot                    (not ___KA___ ? na : p_closePrice ? p_closePrice:  na, title="Major Suport",  linewidth=3, color=color.new(#3ce691, 10), show_last=1, trackprice=true)
+ 
+plotchar                (not ___KA___ ? na : p_openPrice, location=location.absolute, title="Major Support", textcolor=color.silver, show_last=1, offset=10, color=color.new(#646665, 20), char="⦁", color=color.silver)
+plotchar                (not ___KA___ ? na : p_highPrice, location=location.absolute, title="Minor Resistance", textcolor=color.silver, show_last=1, offset=10, color=color.new(#646665, 20), char="⦁", color=color.silver)
+plotchar                (not ___KA___ ? na : p_lowPrice, location=location.absolute, title="Minor Support", textcolor=color.silver, show_last=1,  offset=10, color=color.new(#646665, 20), char="⦁", color=color.silver)
+plotchar                (not ___KA___ ? na : p_closePrice, location=location.absolute, title="Major Resistance", textcolor=color.silver, show_last=1,  offset=10, color=color.new(#646665, 20), char="⦁", color=color.silver)
+
+alertcondition(p_closePrice, "Major Support Level ", "Major Level{{ticker}}")
+alertcondition(p_lowPrice, "Minor Support Level ", "Minor Level{{ticker}}")
+alertcondition(p_openPrice, "Major Resistance Level ", "Major Level{{ticker}}")
+alertcondition(p_highPrice ,"Minor Resistance Level ", "Minor Level{{ticker}}")
+

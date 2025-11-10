@@ -1,0 +1,31 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © NicoadW1990
+//@version=4
+study("Candle Volatility Index")
+src = input(close, title="Source")
+maType = input(title="Volatility MA Type", options=["EMA", "SMA", "WMA", "VWMA", "ALMA", "HMA"] , defval = "SMA")
+period=input(8, title="Volatility Period")
+signal_maType = input(title="Signal MA Type", options=["EMA", "SMA", "WMA", "VWMA", "ALMA", "HMA"] , defval = "SMA")
+signal_period=input(10, title="Signal Period")
+
+Base=abs(src-src[1])
+
+MA_Calc(MA_type,MA_source,MA_period) =>
+    float result = 0
+    if MA_type == "SMA" // Simple
+        result := sma(MA_source, MA_period)
+    if MA_type == "EMA" // Exponential
+        result := ema(MA_source, MA_period)
+    if MA_type == "WMA" // Weighted
+        result := wma(MA_source, MA_period)
+    if MA_type == "VWMA" // Volume Weighted
+        result := vwma(MA_source, MA_period)
+    if MA_type == "ALMA" // Arnaud Legoux
+        result := alma(MA_source, MA_period, .85, 6)
+    if MA_type == "HMA" // Hull
+        result := wma(2 * wma(MA_source, MA_period / 2) - wma(MA_source, MA_period), round(sqrt(MA_period)))
+    result
+Volatility=MA_Calc(maType,Base,period)
+Signal=MA_Calc(signal_maType,Volatility,signal_period)
+plot(Volatility, style=plot.style_columns, color= Volatility>Signal ? color.blue : color.gray)
+plot(Signal, color=color.black, linewidth=2)

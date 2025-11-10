@@ -1,0 +1,92 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © EdgeTerminal
+
+//@version=6
+indicator('Cointegration Buy and Sell Signals [EdgeTerminal]', overlay = true)
+
+// INPUTS
+lenShort = input.int(14, 'Short EMA')
+lenLong = input.int(60, 'Long EMA')
+zLookback = input.int(100, 'Z-Score Lookback')
+volLookback = input.int(20, 'Volatility Window')
+corrLookback = input.int(30, 'Correlation Lookback')
+hurstLookback = input.int(50, 'Hurst Approximation Window')
+percentileLevel = input.float(90, 'Z Threshold Percentile', minval = 50, maxval = 99)
+cooldownBars = input.int(10, 'Min Bars Between Signals')
+
+// EMA CALC
+emaShort = ta.ema(close, lenShort)
+emaLong = ta.ema(close, lenLong)
+
+// REGRESSION SPREAD
+slope = ta.linreg(emaShort, zLookback, 0)
+intercept = ta.linreg(emaLong, zLookback, 0)
+fitted = intercept + slope
+spread = emaShort - fitted
+
+// VOLATILITY-WEIGHTED SPREAD
+priceVol = ta.stdev(close, volLookback)
+normSpread = spread / priceVol
+
+// Z-SCORE OF NORMALIZED SPREAD
+spreadMean = ta.sma(normSpread, zLookback)
+spreadStd = ta.stdev(normSpread, zLookback)
+zscore = (normSpread - spreadMean) / spreadStd
+
+// Z-SCORE MOMENTUM
+zroc = zscore - zscore[1]
+
+// DYNAMIC Z-SCORE THRESHOLDS USING PERCENTILES
+zMax = ta.percentile_linear_interpolation(zscore, zLookback, percentileLevel)
+zMin = ta.percentile_linear_interpolation(zscore, zLookback, 100 - percentileLevel)
+
+// CORRELATION FILTER
+corr = ta.correlation(emaShort, emaLong, corrLookback)
+
+// STATIONARITY PROXY VIA RESIDUAL VOLATILITY (ADF-Like)
+residVol = ta.stdev(spread, volLookback)
+residVolMin = ta.lowest(residVol, volLookback)
+isStationary = residVol < residVolMin * 1.5
+
+// COMPOSITE SIGNAL CONDITIONS
+rawBuy = zscore < zMin and zroc > 0 and corr > 0.7 and isStationary
+rawSell = zscore > zMax and zroc < 0 and corr > 0.7 and isStationary
+
+// NO BACK-TO-BACK SIGNALS OF SAME TYPE
+var string lastSignal = ''
+var int lastSignalBar = na
+
+canBuy = lastSignal != 'Buy' and (na(lastSignalBar) or bar_index - lastSignalBar >= cooldownBars)
+canSell = lastSignal != 'Sell' and (na(lastSignalBar) or bar_index - lastSignalBar >= cooldownBars)
+
+buySignal = rawBuy and canBuy
+sellSignal = rawSell and canSell
+
+if buySignal
+    lastSignal := 'Buy'
+    lastSignalBar := bar_index
+    lastSignalBar
+if sellSignal
+    lastSignal := 'Sell'
+    lastSignalBar := bar_index
+    lastSignalBar
+
+// LOT SIGNALS
+plotshape(buySignal, location = location.belowbar, color = color.rgb(1, 26, 248), style = shape.labelup, text = 'Buy', textcolor = color.white)
+plotshape(sellSignal, location = location.abovebar, color = color.red, style = shape.labeldown, text = 'Sell', textcolor = color.white)
+
+// DEBUG TABLE
+var table infoTable = table.new(position.top_right, 1, 6, border_width = 1)
+barsSince = na(lastSignalBar) ? na : bar_index - lastSignalBar
+
+if bar_index % 1 == 0
+    table.cell(infoTable, 0, 0, 'Z-Score: ' + str.tostring(zscore, format.mintick), text_color = color.white, bgcolor = color.new(color.blue, 85))
+    table.cell(infoTable, 0, 1, 'Z Momentum: ' + str.tostring(zroc, format.mintick), text_color = color.white, bgcolor = color.new(color.navy, 85))
+    table.cell(infoTable, 0, 2, 'Corr: ' + str.tostring(corr, format.mintick), text_color = color.white, bgcolor = color.new(color.gray, 85))
+    table.cell(infoTable, 0, 3, 'Stationary: ' + (isStationary ? 'Yes' : 'No'), text_color = color.white, bgcolor = color.new(isStationary ? color.green : color.red, 80))
+    table.cell(infoTable, 0, 4, 'Last Signal: ' + (na(lastSignal) ? 'None' : lastSignal), text_color = color.white, bgcolor = color.new(color.black, 80))
+    table.cell(infoTable, 0, 5, 'Bars Since Signal: ' + str.tostring(barsSince), text_color = color.white, bgcolor = color.new(color.black, 80))
+
+// ALERT CONDITIONS
+alertcondition(buySignal, title = 'Buy Signal Alert', message = 'Buy Signal: Z-score reversion + stationarity + correlation confirmed.')
+alertcondition(sellSignal, title = 'Sell Signal Alert', message = 'Sell Signal: Z-score reversion + stationarity + correlation confirmed.')

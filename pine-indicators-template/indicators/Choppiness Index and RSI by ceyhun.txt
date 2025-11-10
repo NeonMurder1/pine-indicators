@@ -1,0 +1,42 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © ceyhun
+
+//@version=5
+indicator(title='Choppiness Index and RSI by ceyhun', format=format.price, precision=2, timeframe='')
+length = input.int(14, 'Chop Length', minval=1)
+
+ci = 100 * math.log10(math.sum(ta.atr(1), length) / (ta.highest(length) - ta.lowest(length))) / math.log10(length)
+offset = input.int(0, 'Offset', minval=-500, maxval=500)
+
+chopchange = ci > 61.8 ? #FF0000 : ci < 38.2 ? #0000FF : #FFFF00
+plot(ci, 'CHOP', color=chopchange, offset=offset, linewidth=2)
+
+len = input.int(14, minval=1, title='Rsi Length')
+src = input(close, 'Source')
+up = ta.rma(math.max(ta.change(src), 0), len)
+down = ta.rma(-math.min(ta.change(src), 0), len)
+rsi = down == 0 ? 100 : up == 0 ? 0 : 100 - 100 / (1 + up / down)
+
+rsichange = rsi > 61.8 ? #0000FF : rsi < 38.2 ? #FF0000 : #8E1599
+plot(rsi, 'RSI', color=rsichange, linewidth=2)
+
+band1 = hline(70, 'Upper Band', color=#00FF00)
+band2 = hline(61.8, 'Upper Band', color=#00FF00, linestyle=hline.style_dashed)
+band3 = hline(38.2, 'Lower Band', color=#FF0000, linestyle=hline.style_dashed)
+band4 = hline(30, 'Lower Band', color=#FF0000)
+fill(band1, band2, color=color.new(#00FF00, 90), title='Background')
+fill(band3, band4, color=color.new(#FF0000, 90), title='Background')
+
+Barcolor = input(true, 'Barcolor')
+
+change1 = rsi > ci ? #0000FF : rsi < ci ? #FF0000 : #FFFF00
+barcolor(Barcolor ? change1 : na)
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,13 @@
+study(title="Culter_RSI", shorttitle="Culter__RSI", overlay=false)
+
+
+len = input(7, minval=1, title="RSI Length")
+up = max(close - close[1], 0)
+down =  max(close[1] - close, 0)
+rsi = sma(up, len) / sma(down, len)
+res = 100 - 100 / (1 + rsi)
+
+plot(res, title="RSI", style=line, linewidth=2, color=blue)
+
+
+
