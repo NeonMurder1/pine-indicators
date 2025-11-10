@@ -1,0 +1,44 @@
+
+//@version=4
+
+study("Fibonacci Moving Average", overlay = true)
+
+hfib_ma_5 = ema(high, 5)
+hfib_ma_8 = ema(high, 8)
+hfib_ma_13 = ema(high, 13)
+hfib_ma_21 = ema(high, 21)
+hfib_ma_34 = ema(high, 34)
+hfib_ma_55 = ema(high, 55)
+hfib_ma_89 = ema(high, 89)
+hfib_ma_144 = ema(high, 144)
+hfib_ma_233 = ema(high, 233)
+hfib_ma_377 = ema(high, 377)
+hfib_ma_610 = ema(high, 610)
+hfib_ma_987 = ema(high, 987)
+hfib_ma_1597 = ema(high, 1597)
+hfib_ma_2584 = ema(high, 2584)
+hfib_ma_4181 = ema(high, 4181)
+
+fib_high = (hfib_ma_5 + hfib_ma_8 + hfib_ma_13 + hfib_ma_21 + hfib_ma_34 + hfib_ma_55 + hfib_ma_89 + hfib_ma_144 + hfib_ma_233 + hfib_ma_377 + hfib_ma_610 + hfib_ma_987 + hfib_ma_1597 + hfib_ma_2584 + hfib_ma_4181) / 15
+
+plot(fib_high, color = (fib_high < close) ? color.blue : color.orange)
+
+lfib_ma_5 = ema(low, 5)
+lfib_ma_8 = ema(low, 8)
+lfib_ma_13 = ema(low, 13)
+lfib_ma_21 = ema(low, 21)
+lfib_ma_34 = ema(low, 34)
+lfib_ma_55 = ema(low, 55)
+lfib_ma_89 = ema(low, 89)
+lfib_ma_144 = ema(low, 144)
+lfib_ma_233 = ema(low, 233)
+lfib_ma_377 = ema(low, 377)
+lfib_ma_610 = ema(low, 610)
+lfib_ma_987 = ema(low, 987)
+lfib_ma_1597 = ema(low, 1597)
+lfib_ma_2584 = ema(low, 2584)
+lfib_ma_4181 = ema(low, 4181)
+
+fib_low = (lfib_ma_5 + lfib_ma_8 + lfib_ma_13 + lfib_ma_21 + lfib_ma_34 + lfib_ma_55 + lfib_ma_89 + lfib_ma_144 + lfib_ma_233 + lfib_ma_377 + lfib_ma_610 + lfib_ma_987 + lfib_ma_1597 + lfib_ma_2584 + lfib_ma_4181) / 15
+
+plot(fib_low, color = (fib_low < close) ? color.blue : color.orange)

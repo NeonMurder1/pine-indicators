@@ -1,0 +1,111 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © GodeyeThelasthope
+
+//@version=5
+indicator('Gold scalper 1 min or 30 sec', overlay=true)
+
+res = input.timeframe(title='Resolution', defval='240')
+SMA1 = input(1, title = 'SMA') 
+isess = session.regular
+t = ticker.new(syminfo.prefix, syminfo.ticker, session=isess)
+igaps = barmerge.gaps_off
+yesterdayHigh = request.security(t, res, high[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+yesterdayLow = request.security(t, res, low[1], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+
+sma = ta.sma(close, SMA1  )
+breakout_up = ta.cross(sma,yesterdayHigh ) 
+breakout_down = ta.cross(sma,yesterdayLow)
+t1 = input.int(70, "Transparency 1", maxval = 100, minval = 0, group = "Appearance")
+t2 = input.int(95, "Transparency 2", maxval = 100, minval = 0, group = "Appearance")
+green = input.color(#00ffbb, "Bullish Color", group = "Appearance")
+red = input.color(#ff1100, "Bearish Color", group = "Appearance")
+
+
+// Lines
+a = plot(yesterdayHigh,title = 'Upper', color=color.new(color.lime, 0), linewidth=1, style=plot.style_linebr)
+b = plot(yesterdayLow, title = 'Lower', color=color.new(color.red, 0), linewidth=1, style=plot.style_linebr)
+//e = plot(sma, title = 'SMA', color=color.new(#717ff7, 0), linewidth=1, style=plot.style_linebr)
+
+
+//buy
+RSIBaseBanker = 50
+RSIPeriodBanker = 50
+RSIBaseHotMoney = 30
+RSIPeriodHotMoney = 30
+SensitivityBanker = 1.5
+SensitivityHotMoney = 0.7
+BankerMAPeriod = input.int(8, 'Banker Moving Average Period for buy', minval=1)
+BankerMAforbuy = input.float(1,'Banker crossover for start buy')
+
+//sell
+RSIBaseBanker1 = 50
+RSIPeriodBanker1 = 50
+RSIBaseHotMoney1 = 30
+RSIPeriodHotMoney1 = 30
+SensitivityBanker1 = 1.5
+SensitivityHotMoney1 = 0.7
+BankerMAPeriod1 = input.int(8, 'Banker Moving Average Period for sell', minval=1)
+BankerMAforsell1 = input.float(1,'Banker crossover for start sell')
+
+// Option to select trade directions
+tradeDirection = input.string(title='Trade Direction', options=['Long', 'Short', 'Both'], defval='Both')
+
+rsi_function(sensitivity, rsiPeriod, rsiBase) =>
+    rsi = sensitivity * (ta.rsi(close, rsiPeriod) - rsiBase)
+    if rsi > 20
+        rsi := 20
+        rsi
+    else if rsi < 0
+        rsi := 0
+        rsi
+    rsi
+
+rsi_Banker = rsi_function(SensitivityBanker, RSIPeriodBanker, RSIBaseBanker)
+rsi_HotMoney = rsi_function(SensitivityHotMoney, RSIPeriodHotMoney, RSIBaseHotMoney)
+
+BankerMA = ta.sma(rsi_Banker, BankerMAPeriod)
+RetailMA = 20 - ta.sma(rsi_HotMoney, RSIPeriodHotMoney)
+HotmoneyMA = ta.sma(rsi_HotMoney, RSIPeriodHotMoney)
+
+rsi_function1(sensitivity1, rsiPeriod1, rsiBase1) =>
+    rsi = sensitivity1 * (ta.rsi(close, rsiPeriod1) - rsiBase1)
+    if rsi > 20
+        rsi := 20
+        rsi
+    else if rsi < 0
+        rsi := 0
+        rsi
+    rsi
+
+rsi_Banker1 = rsi_function(SensitivityBanker1, RSIPeriodBanker1, RSIBaseBanker1)
+rsi_HotMoney1 = rsi_function(SensitivityHotMoney1, RSIPeriodHotMoney1, RSIBaseHotMoney1)
+
+BankerMA1 = ta.sma(rsi_Banker1, BankerMAPeriod1)
+RetailMA1 = 20 - ta.sma(rsi_HotMoney1, RSIPeriodHotMoney1)
+HotmoneyMA1 = ta.sma(rsi_HotMoney1, RSIPeriodHotMoney1)
+
+Bankerbuy = ta.crossunder(BankerMA1,BankerMAforsell1) 
+
+// Decide if we should go long or short using the built-in functions
+Retailsell1 = ta.crossover(BankerMA,BankerMAforbuy)
+Sell = Bankerbuy and (close <= yesterdayLow)
+Buy =  Retailsell1 and (close >= yesterdayHigh)
+
+// Plot buy and sell signals on chart
+plotshape(Buy, title='Buy Signal', style=shape.labelup, location=location.belowbar, color=color.rgb(98, 230, 102), size=size.tiny)
+// Plot buy and sell signals on chart
+plotshape(Sell, title='Sell Signal', style=shape.labeldown, location=location.abovebar, color=color.rgb(247, 116, 155), size=size.tiny)
+
+// Generate alerts for buy and sell signals
+alertcondition(Buy, title='Buy above buy side Liquidity', message='buy,{{close}}')
+// Generate alerts for buy and sell signals
+alertcondition(Sell, title='Sell below sell side Liquidity', message='sell,{{close}}')
+
+upTrend = plot(close > yesterdayHigh ? yesterdayHigh : na, color = color.new(green, t1), style = plot.style_linebr) //, force_overlay = true
+downTrend = plot(close < yesterdayLow ? yesterdayLow : na, color = color.new(red, t1), style = plot.style_linebr, force_overlay = false) //, force_overlay = true
+bodyMiddle = plot(barstate.isfirst ? na : (open + close) / 2, "Body Middle",display = display.none)
+
+fill(bodyMiddle, upTrend, (open + close) / 2, yesterdayHigh, color.new(green, t2), color.new(green, t1))
+fill(bodyMiddle, downTrend, yesterdayLow, (open + close) / 2, color.new(red, t1), color.new(red, t2))
+
+

@@ -1,0 +1,78 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © eykpunter 
+
+//@version=5
+indicator("Fibonacci Zone Oscillator With MACD Histogram", shorttitle="Fibzone+MACD Osc", overlay=false)
+per=input.int(14, "calculate for last ## bars", minval=6)
+
+perwish=input.bool(true, "script sets lookback")
+perfeedback=input.bool(true, "show feedback label about lookback")
+//Select all or one group; done this way to make sure someting is plotted.
+bothwish=input.bool(true, "togle combination of columns and macd or just one", group="Select all or one")
+onewish=input.bool(true, "togle fibzone columns / histgram with volume event marks", group="Select all or one")
+fibwish= bothwish or onewish?     true:false
+macwish= bothwish or not onewish? true:false
+
+//calculate periods by script if perwish == true
+setper= 14                           //initialize setper
+tf=timeframe.period
+setper:= tf=="M"? 14: tf=="W"? 14: tf=="D"? 21: tf=="240"? 28: tf=="180"? 28: tf=="120"? 35: tf=="60"? 35: tf=="45"? 35: tf=="30"? 42: tf=="15"? 42: tf=="5"? 49: tf=="3"? 49: tf=="1"? 56: 10
+per:= perwish? setper : per
+
+//set lookbacks for MACD histogram
+slow = per
+fast = math.round(per/2)
+signal = math.round(per/3)
+
+//Calculate Donchian Channel
+hl=ta.highest(high,per) //High Line (Border)
+ll=ta.lowest(low,per)   //Low Line  (Border)
+
+//Calculate Fibonacci levels
+dist=hl-ll          //range of the Donchian channel 
+hf=hl-dist*0.236    //Highest Fibonacci line
+cfh=hl-dist*0.382    //Center High Fibonacci line
+cfl=hl-dist*0.618    //Center Low Fibonacci line
+lf=hl-dist*0.764     //Lowest Fibonacci line
+
+//Calculate relative position of close
+posup=close>hf                      //in uptrend area
+posabove=close<=hf and close> cfh   //in prudent buyers area
+posmiddle=close<=cfh and close>cfl  //in center area
+posunder=close<=cfl and close>lf    //in prudent sellers area
+posdown=close<=lf                   //in downtrend area
+
+//Calculate percents of close
+cent=(hl+ll)/2      //used as 100 % level
+clocent1=close/cent*100-100         //percent of close for fibonacci oscillator
+clocent=fibwish?clocent1:na         //show columns if wished in inputs
+
+//MACD histogram with equal percentrange as Fibonaccizone columns
+emaF = ta.ema(close, fast)
+emaS = ta.ema(close, slow)
+emaFperc=emaF/cent*100
+emaSperc=emaS/cent*100
+macdperc = (emaFperc - emaSperc)
+sig = ta.ema(macdperc, signal)
+diff1 = (macdperc - sig)
+factor=(ta.highest(clocent1, per)-ta.lowest(clocent1,per))/(ta.highest(diff1,per)-ta.lowest(diff1,per)) //factor to make histogram range equal to column range
+diff=macwish?diff1*factor:na            //show histogram if wished in inputs
+
+//calculate column colors
+poscol=posup? color.new(color.blue,00): posabove? color.new(color.lime,00): posmiddle? color.new(color.gray,00): posunder? color.new(color.orange,00): color.new(color.red, 00)
+
+//plots
+plot(diff, "diffarea", style=plot.style_area, color=color.rgb(230,250,220, 50), linewidth=0)   //macd as area greenish off white
+plot(clocent, title="% Close", style=plot.style_columns, color=poscol, linewidth=4)  //fibzone oscillator
+plot(diff, "diffline", style=plot.style_line, color=diff>0? color.new(color.purple, 00): color.new(color.purple, 00),  linewidth=2) //macd as line purple
+plot(diff, "diffhist", style=plot.style_histogram, color=color.rgb(240,180,40, 70), linewidth=2)//macd as histgram golden brown, very transparent
+
+
+//feedback table
+var table userorscript = table.new(position=position.bottom_left, columns=1, rows=1)
+feedbacktext=perwish? "script lookback " +str.tostring(per) : "user lookback " +str.tostring(per)
+if perfeedback == true
+    table.cell(userorscript, row=0, column=0, text=feedbacktext, bgcolor=color.silver)
+else if perfeedback == false
+    table.clear(userorscript, 0, 0, 0, 0)
+

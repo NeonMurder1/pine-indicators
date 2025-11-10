@@ -1,0 +1,118 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © jdehorty
+// @version=6
+
+indicator('Economic Calendar Events', overlay=true, scale=scale.none, max_lines_count=500)
+
+import jdehorty/EconomicCalendar/4 as calendar
+
+// ==================
+// ==== Settings ====
+// ==================
+
+show_fomc_meetings = input.bool(defval = true, title = "📅 FOMC", inline = "FOMC", group="⚙️ Settings", tooltip="The FOMC meets eight times a year to determine the course of monetary policy. The FOMC's decisions are announced in a press release at 2:15 p.m. ET on the day of the meeting. The press release is followed by a press conference at 2:30 p.m. ET. The FOMC's decisions are based on a review of economic and financial developments and its assessment of the likely effects of these developments on the economic outlook.")
+c_fomcMeeting = input.color(color.new(color.red, 50), title = "Color", group="⚙️ Settings", inline = "FOMC")
+
+show_fomc_minutes = input.bool(defval = true, title = "📅 FOMC Minutes", inline = "FOMCMinutes", group="⚙️ Settings", tooltip="The FOMC minutes are released three weeks after each FOMC meeting. The minutes provide a detailed account of the FOMC's discussion of economic and financial developments and its assessment of the likely effects of these developments on the economic outlook.")
+c_fomcMinutes = input.color(color.new(color.orange, 50), title = "Color", group="⚙️ Settings", inline = "FOMCMinutes")
+
+show_ppi = input.bool(defval = true, title = "📅 Producer Price Index (PPI)", inline = "PPI", group="⚙️ Settings", tooltip="The Producer Price Index (PPI) measures changes in the price level of goods and services sold by domestic producers. The PPI is a weighted average of prices of a basket of goods and services, such as transportation, food, and medical care. The PPI is a leading indicator of CPI.")
+c_ppi = input.color(color.new(color.yellow, 50), title = "Color", group="⚙️ Settings", inline = "PPI")
+
+show_cpi = input.bool(defval = true, title = "📅 Consumer Price Index (CPI)", inline = "CPI", group="⚙️ Settings", tooltip="The Consumer Price Index (CPI) measures changes in the price level of goods and services purchased by households. The CPI is a weighted average of prices of a basket of consumer goods and services, such as transportation, food, and medical care. The CPI-U is the most widely used measure of inflation. The CPI-U is based on a sample of about 87,000 households and measures the change in the cost of a fixed market basket of goods and services purchased by urban consumers.")
+c_cpi = input.color(color.new(color.lime, 50), title = "Color", group="⚙️ Settings", inline = "CPI")
+
+show_csi = input.bool(defval = true, title = "📅 Consumer Sentiment Index (CSI)", inline = "CSI", group="⚙️ Settings", tooltip="The University of Michigan's Consumer Sentiment Index (CSI) is a measure of consumer attitudes about the economy. The CSI is based on a monthly survey of 500 U.S. households. The index is based on consumers' assessment of present and future economic conditions. The CSI is a leading indicator of consumer spending, which accounts for about two-thirds of U.S. economic activity.")
+c_csi = input.color(color.new(color.aqua, 50), title = "Color", group="⚙️ Settings", inline = "CSI")
+
+show_cci = input.bool(defval = true, title = "📅 Consumer Confidence Index (CCI)", inline = "CCI", group="⚙️ Settings", tooltip="The Conference Board's Consumer Confidence Index (CCI) is a measure of consumer attitudes about the economy. The CCI is based on a monthly survey of 5,000 U.S. households. The index is based on consumers' assessment of present and future economic conditions. The CCI is a leading indicator of consumer spending, which accounts for about two-thirds of U.S. economic activity.")
+c_cci = input.color(color.new(color.fuchsia, 50), title = "Color", group="⚙️ Settings", inline = "CCI")
+
+show_nfp = input.bool(defval = true, title = "📅 Non-Farm Payroll (NFP)", inline = "NFP", group="⚙️ Settings", tooltip="The Non-Farm Payroll (NFP) is a measure of the change in the number of employed persons, excluding farm workers and government employees. The NFP is a leading indicator of consumer spending, which accounts for about two-thirds of U.S. economic activity.")
+c_nfp = input.color(color.new(color.silver, 50), title = "Color", group="⚙️ Settings", inline = "NFP")
+
+show_legend = input.bool(true, "Show Legend", group="⚙️ Settings", inline = "Legend", tooltip="Show the color legend for the economic calendar events.")
+use_alt_date_resolution = input.bool(false, "Use Alternative Date Resolution", group="⚙️ Settings", inline = "AlternativeDateResolution", tooltip="Use alternative date resolution for the economic calendar events. May help in scenarios where the daily timeframe is off by a day.")
+
+// =======================
+// ==== Dates & Times ====
+// =======================
+
+getUnixTime(eventArr, i) => 
+    int t = array.get(eventArr, i)
+    switch 
+        timeframe.isdaily => timestamp(year(t), month(t), dayofmonth(t)-timeframe.multiplier+1, 00, 00, 00)
+        timeframe.isweekly => timestamp(year(t), month(t), dayofmonth(t)-7*timeframe.multiplier+1, 00, 00, 00)
+        timeframe.ismonthly => timestamp(year(t), month(t)-timeframe.multiplier+1, 00, 00, 00, 00)
+        timeframe.isminutes and timeframe.multiplier > 60  => timestamp(year(t), month(t), dayofmonth(t), hour(t)-timeframe.multiplier/60+1, minute(t), second(t))
+        => timestamp(year(t), month(t), dayofmonth(t), hour(t), minute(t), second(t))
+
+// Note: The following is an alternative implementation of getUnixTime. It is useful for independently double-checking the resulting vertical lines of the above function.
+
+getUnixTimeAlt(eventArr, i) => 
+    int t = array.get(eventArr, i)
+    switch 
+        timeframe.isdaily and timeframe.multiplier >= 1 => t - timeframe.multiplier*86400000 // -n days
+        timeframe.isweekly => t - timeframe.multiplier*604800000 // -n week(s)
+        timeframe.ismonthly => t - timeframe.multiplier*2592000000 // -n month(s)
+        timeframe.isminutes and timeframe.multiplier > 60 => t - timeframe.multiplier*60000 // -n minutes
+        => t
+    
+// Note: An offset of -n units is needed to realign events with the timeframe in which they occurred
+if show_fomc_meetings
+    fomcMeetingsArr = calendar.fomcMeetings()
+    for i = 0 to array.size(fomcMeetingsArr) - 1
+        unixTime = use_alt_date_resolution ? getUnixTimeAlt(fomcMeetingsArr, i) : getUnixTime(fomcMeetingsArr, i)
+        line.new(x1=unixTime, y1=high, x2=unixTime, y2=low, extend=extend.both,color=c_fomcMeeting, width=2, xloc=xloc.bar_time)
+
+if show_fomc_minutes
+    fomcMinutesArr = calendar.fomcMinutes()
+    for i = 0 to array.size(fomcMinutesArr) - 1
+        unixTime = use_alt_date_resolution ? getUnixTimeAlt(fomcMinutesArr, i) : getUnixTime(fomcMinutesArr, i)
+        line.new(x1=unixTime, y1=high, x2=unixTime, y2=low, extend=extend.both,color=c_fomcMinutes, width=2, xloc=xloc.bar_time)
+
+if show_ppi
+    ppiArr = calendar.ppiReleases()
+    for i = 0 to array.size(ppiArr) - 1
+        unixTime = use_alt_date_resolution ? getUnixTimeAlt(ppiArr, i) : getUnixTime(ppiArr, i)
+        line.new(x1=unixTime, y1=high, x2=unixTime, y2=low, extend=extend.both,color=c_ppi, width=2, xloc=xloc.bar_time)
+
+if show_cpi
+    cpiArr = calendar.cpiReleases()
+    for i = 0 to array.size(cpiArr) - 1
+        unixTime = use_alt_date_resolution ? getUnixTimeAlt(cpiArr, i) : getUnixTime(cpiArr, i)
+        line.new(x1=unixTime, y1=high, x2=unixTime, y2=low, extend=extend.both,color=c_cpi, width=2, xloc=xloc.bar_time)
+
+if show_csi
+    csiArr = calendar.csiReleases()
+    for i = 0 to array.size(csiArr) - 1
+        unixTime = use_alt_date_resolution ? getUnixTimeAlt(csiArr, i) : getUnixTime(csiArr, i)
+        line.new(x1=unixTime, y1=high, x2=unixTime, y2=low, extend=extend.both,color=c_csi, width=2, xloc=xloc.bar_time)
+
+if show_cci
+    cciArr = calendar.cciReleases()
+    for i = 0 to array.size(cciArr) - 1
+        unixTime = use_alt_date_resolution ? getUnixTimeAlt(cciArr, i) : getUnixTime(cciArr, i)
+        line.new(x1=unixTime, y1=high, x2=unixTime, y2=low, extend=extend.both,color=c_cci, width=2, xloc=xloc.bar_time)
+
+if show_nfp
+    nfpArr = calendar.nfpReleases()
+    for i = 0 to array.size(nfpArr) - 1
+        unixTime = use_alt_date_resolution ? getUnixTimeAlt(nfpArr, i) : getUnixTime(nfpArr, i)
+        line.new(x1=unixTime, y1=high, x2=unixTime, y2=low, extend=extend.both,color=c_nfp, width=2, xloc=xloc.bar_time)
+
+// ================
+// ==== Legend ====
+// ================
+if show_legend
+    var tbl = table.new(position.top_right, columns=1, rows=8, frame_color=#151715, frame_width=1, border_width=2, border_color=color.new(color.black, 100))
+    units = timeframe.isminutes ? "m" : ""
+    if barstate.islast
+        table.cell(tbl, 0, 0, syminfo.ticker + ' | ' + str.tostring(timeframe.period) + units, text_halign=text.align_center, text_color=color.gray, text_size=size.normal)
+        table.cell(tbl, 0, 1, 'FOMC Meeting', text_halign=text.align_center, bgcolor=color.black, text_color=color.new(c_fomcMeeting, 10), text_size=size.small)
+        table.cell(tbl, 0, 2, 'FOMC Minutes', text_halign=text.align_center, bgcolor=color.black, text_color=color.new(c_fomcMinutes, 10), text_size=size.small)
+        table.cell(tbl, 0, 3, 'Producer Price Index (PPI)', text_halign=text.align_center, bgcolor=color.black, text_color=color.new(c_ppi, 10), text_size=size.small)
+        table.cell(tbl, 0, 4, 'Consumer Price Index (CPI)', text_halign=text.align_center, bgcolor=color.black, text_color=color.new(c_cpi, 10), text_size=size.small)
+        table.cell(tbl, 0, 5, 'Consumer Sentiment Index (CSI)', text_halign=text.align_center, bgcolor=color.black, text_color=color.new(c_csi, 10), text_size=size.small)
+        table.cell(tbl, 0, 6, 'Consumer Confidence Index (CCI)', text_halign=text.align_center, bgcolor=color.black, text_color=color.new(c_cci, 10), text_size=size.small)
+        table.cell(tbl, 0, 7, 'Non-Farm Payrolls (NFP)', text_halign=text.align_center, bgcolor=color.black, text_color=color.new(c_nfp, 10), text_size=size.small)

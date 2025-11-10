@@ -1,0 +1,206 @@
+//@version=6
+indicator("Delta Volume Bubbles", overlay = true, max_lines_count = 500)
+import TradingView/ta/8 as ta
+
+
+//#region ——— Inputs
+string bubble_display   = input.string("Show All", "Show Bubbles", options = ["Show All", "Large/Huge Only", "Huge Only", "None"], group = "Order Flow")
+float bubble_percentile = input.float(60, "Bubble Volume %ile", minval = 0, maxval = 100, group = "Order Flow")
+bool  show_labels       = input.bool(true, "Show Numbers in Bubbles", group = "Bubble Labels")
+float label_percentile  = input.float(90, "Label Volume %ile", minval = 0, maxval = 100, group = "Bubble Labels")
+bool  intensity_mode    = input.bool(false, "Intensity Mode", group = "Order Flow")
+int   delta_avg_length  = input.int(20, "Delta Z-Score Length", minval = 1, group = "Order Flow")
+
+// Filter type option
+string filter_type = input.string("Delta Strength", "Filter Type", options = ["Delta Strength", "Net Delta"], group = "Order Flow", tooltip = "Delta Strength (z-score normalized) for consistency across symbols, or Net Delta (absolute) for raw volume filtering")
+
+// Bubble placement option
+string bubble_placement = input.string("Candle VWAP", "Bubble Placement", options = ["Middle", "Candle VWAP"], group = "Order Flow")
+
+// Minimal mode toggle
+bool minimal_mode = input.bool(false, "Minimal Mode (Tiny dots only)", group = "Order Flow")
+
+
+// Custom timeframe inputs
+lowerTimeframeTooltip = "The indicator scans lower timeframe data to approximate up and down volume used in the delta calculation. By default, the timeframe is chosen automatically. These inputs override this with a custom timeframe.\n\nHigher timeframes provide more historical data, but the data will be less precise."
+useCustomTimeframeInput = input.bool(false, "Use custom timeframe", tooltip = lowerTimeframeTooltip, group = "Order Flow")
+lowerTimeframeInput = input.timeframe("1", "Timeframe", group = "Order Flow")
+
+
+color aggressive_buy    = color.new(#00ff88, 20)
+color aggressive_sell   = color.new(#ff4444, 20)
+color passive_buy       = color.new(#88ff88, 60)
+color passive_sell      = color.new(#ff8888, 60)
+
+
+color low_intensity     = color.new(color.gray, 70)
+color med_intensity     = color.new(color.blue, 50)
+color high_intensity    = color.new(color.orange, 30)
+color extreme_intensity = color.new(color.red, 10)
+//#endregion
+
+
+//#region ——— Helper Functions
+// Custom function to format numbers with K notation
+format_with_k(value) =>
+    abs_value = math.abs(value)
+    sign = value < 0 ? "-" : ""
+    
+    if abs_value >= 1000000
+        sign + str.tostring(abs_value / 1000000, "#.##") + "M"
+    else if abs_value >= 1000
+        sign + str.tostring(abs_value / 1000, "#.##") + "K"
+    else
+        sign + str.tostring(abs_value, "#")
+
+// Function to calculate VWAP for the current candle using LTF data
+calculate_candle_vwap(ltfPrices, ltfVolumes) =>
+    int arraySize = array.size(ltfPrices)
+    
+    if arraySize == 0
+        hl2
+    else
+        // Calculate VWAP: sum(price * volume) / sum(volume)
+        float sumPriceVolume = 0.0
+        float sumVolume = 0.0
+        
+        for i = 0 to arraySize - 1
+            float ltfPrice = array.get(ltfPrices, i)
+            float ltfVol = array.get(ltfVolumes, i)
+            
+            sumPriceVolume += ltfPrice * ltfVol
+            sumVolume += ltfVol
+        
+        // Return VWAP or hl2 if no volume
+        float candleVwap = sumVolume > 0 ? sumPriceVolume / sumVolume : hl2
+        candleVwap
+//#endregion
+
+
+//#region ——— Calculations
+// Determine lower timeframe using switch expression (Pine v6 syntax)
+var string lowerTimeframe = switch
+    useCustomTimeframeInput => lowerTimeframeInput
+    timeframe.isseconds     => "1S"
+    timeframe.isintraday    => "1"
+    timeframe.isdaily       => "5"
+    => "60"
+
+
+// Request official volume delta data
+[openDelta, maxDelta, minDelta, lastDelta] = ta.requestVolumeDelta(lowerTimeframe)
+
+
+// Function to get LTF data for candle VWAP calculation
+ltfData() =>
+    [hlc3, volume]
+
+[ltfPrices, ltfVolumes] = request.security_lower_tf(syminfo.tickerid, lowerTimeframe, ltfData())
+
+
+// Calculate VWAP for the current candle using LTF data
+current_candle_vwap = calculate_candle_vwap(ltfPrices, ltfVolumes)
+
+// Determine bubble placement based on user selection
+source = bubble_placement == "Candle VWAP" ? current_candle_vwap : hl2
+
+
+// Use official delta data
+net_delta = lastDelta
+
+
+// Z-Score normalization (more robust than simple average)
+delta_mean = ta.sma(net_delta, delta_avg_length)
+delta_stdev = ta.stdev(net_delta, delta_avg_length)
+delta_strength = delta_stdev == 0 ? 0 : math.abs((net_delta - delta_mean) / delta_stdev)
+
+
+// Filtering - choose between delta strength or net delta
+bool use_strength_filter = filter_type == "Delta Strength"
+
+bubble_filter = use_strength_filter ? 
+     ta.percentile_linear_interpolation(delta_strength, delta_avg_length, bubble_percentile) : 
+     ta.percentile_linear_interpolation(math.abs(net_delta), delta_avg_length, bubble_percentile)
+
+label_filter = use_strength_filter ? 
+     ta.percentile_linear_interpolation(delta_strength, delta_avg_length, label_percentile) : 
+     ta.percentile_linear_interpolation(math.abs(net_delta), delta_avg_length, label_percentile)
+
+// Filter value to compare against
+filter_value = use_strength_filter ? delta_strength : math.abs(net_delta)
+
+
+// Determine flow type based on net_delta and delta_strength
+is_aggressive_buy  = net_delta > 0 and delta_strength > 1.5
+is_aggressive_sell = net_delta < 0 and delta_strength > 1.5
+
+
+flow_color = is_aggressive_buy ? aggressive_buy : 
+             is_aggressive_sell ? aggressive_sell :
+             net_delta > 0 ? passive_buy : passive_sell
+
+
+intensity_color = delta_strength < 0.5 ? low_intensity :
+                  delta_strength < 1.0 ? med_intensity :
+                  delta_strength < 2.0 ? high_intensity : extreme_intensity
+
+
+final_color = intensity_mode ? intensity_color : flow_color
+
+// Determine what to show based on bubble_display selection
+bool show_enabled = bubble_display != "None"
+bool show_large_huge_only = bubble_display == "Large/Huge Only"
+bool show_huge_only = bubble_display == "Huge Only"
+
+// Bubble size logic with display filter
+show_tiny   = delta_strength < 0.5 and show_enabled and not show_large_huge_only and not show_huge_only and filter_value > bubble_filter
+show_small  = delta_strength >= 0.5 and delta_strength < 1.0 and show_enabled and not show_large_huge_only and not show_huge_only and filter_value > bubble_filter
+show_normal = delta_strength >= 1.0 and delta_strength < 1.5 and show_enabled and not show_large_huge_only and not show_huge_only and filter_value > bubble_filter
+show_large  = delta_strength >= 1.5 and delta_strength < 2.0 and show_enabled and not show_huge_only and filter_value > bubble_filter
+show_huge   = delta_strength >= 2.0 and show_enabled and filter_value > bubble_filter
+
+
+// Bubble label logic with selected filter
+show_label = show_labels and filter_value > label_filter
+bubble_text = format_with_k(net_delta)
+//#endregion
+
+
+//#region ——— Plotting
+// Calculate offset and dot position at global scope
+float offset = syminfo.mintick * 3
+float dot_position = net_delta > 0 ? high + offset : low - offset
+bool show_dot = (show_tiny or show_small or show_normal or show_large or show_huge) and show_enabled
+
+
+// All plotshape calls at global scope with conditional series
+plotshape(minimal_mode and show_dot ? dot_position : na, "", shape.circle, location.absolute, final_color, 0, "", na, size = size.tiny)
+
+
+plotshape(not minimal_mode and show_tiny ? source : na, "", shape.circle, location.absolute, final_color, 0, "", na, size = size.tiny)
+plotshape(not minimal_mode and show_small ? source : na, "", shape.circle, location.absolute, final_color, 0, "", na, size = size.small)
+plotshape(not minimal_mode and show_normal ? source : na, "", shape.circle, location.absolute, final_color, 0, "", na, size = size.normal)
+plotshape(not minimal_mode and show_large ? source : na, "", shape.circle, location.absolute, final_color, 0, "", na, size = size.large)
+plotshape(not minimal_mode and show_huge ? source : na, "", shape.circle, location.absolute, final_color, 0, "", na, size = size.huge)
+
+
+// Labels only show in normal mode
+if not minimal_mode and show_label
+    if show_huge
+        label.new(bar_index, source, bubble_text, style=label.style_label_center, color=color.new(color.white, 100), textcolor=color.black, size=size.small)
+    else if show_large
+        label.new(bar_index, source, bubble_text, style=label.style_label_center, color=color.new(color.white, 100), textcolor=color.black, size=size.small)
+    else if show_normal
+        label.new(bar_index, source, bubble_text, style=label.style_label_center, color=color.new(color.white, 100), textcolor=color.black, size=size.small)
+    else if show_small
+        label.new(bar_index, source, bubble_text, style=label.style_label_center, color=color.new(color.white, 100), textcolor=color.black, size=size.small)
+    else if show_tiny
+        label.new(bar_index, source, bubble_text, style=label.style_label_center, color=color.new(color.white, 100), textcolor=color.black, size=size.small)
+
+
+// Warning for no volume data
+if ta.cum(volume) <= 0 and barstate.islast
+    label.new(bar_index, hl2, "No Volume Data Available\nSwitch to volume-enabled symbol", 
+              style = label.style_label_left, 
+              textcolor = chart.fg_color)
+//#endregion

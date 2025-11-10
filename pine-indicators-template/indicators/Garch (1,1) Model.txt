@@ -1,0 +1,88 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © SegaRKO
+
+//@version=4
+study("Garch(1,1)",precision=10)
+dataChoice=input(title="Data Type", defval="Projected Deviation in %", options=["Projected Variance in %", "Projected Deviation in %"])
+timeFrame=timeframe.period
+
+
+//Length Values Based on Chart TimeFrame
+length=if timeframe.period=="1" or timeframe.period=="60"
+    60  //The 60 here represents the 60 seconds that make up 1 min, if that's the timeframe you're using; while if you're using the hourly it will repesent the 60mins that make up each hour. 
+else if timeframe.isminutes==true
+    timeframe.multiplier
+else if timeframe.period=="D"
+    24 //The 24 here represents the 24 hours that make up a day.
+else if timeframe.isdaily==true
+    24*timeframe.multiplier
+else if timeframe.period=="W"
+    5 //The 5 here represents the number of trading days that make up a week.
+else if timeframe.isweekly==true
+    5*timeframe.multiplier
+else if timeframe.period=="M"
+    25 //This 25 represents the 25 trading days that make up a month. 25 days is used because it is the number originally used by JP Morgan in their calculations.
+else if timeframe.ismonthly==true
+    25*timeframe.multiplier
+    
+
+//Lagged Return and Lagged Variance 
+laggedReturn=log(close[1]/close[2])
+laggedVariance=variance(close[1],1)
+squaredLaggedReturn=pow(laggedReturn,2)
+
+
+//Automated Beta Coefficient Optimization:
+
+//JP Morgan calculated the realized variance as the equally-weighted average of the squared lagged return. 
+realizedVar=sma(squaredLaggedReturn,length)
+
+//Sum of Squared Errors (SSE) of Exponentially Weighted Moving Average and Realized Variance
+//SSE=sum(pow(EWMA-realizedVar),2),length)
+//EWMA=(lambda*laggedVariance)+(1-lambda)*squaredLaggedReturn
+//Here the SSE of every EWMA, with varying lambda weights, is calculated
+sseArrayLambda=array.new_float(0)
+for var i=1 to 99
+    sseLambda=sum(pow(((((i/100)	*laggedVariance)	+	((1-(i/100))	*squaredLaggedReturn))		-	realizedVar),2),length)
+    array.push(sseArrayLambda,sseLambda)
+
+optimalSSELambda=array.min(sseArrayLambda)
+Lambda_Index=(array.indexof(sseArrayLambda,optimalSSELambda)+1)
+//The lambda of the EWMA and the Beta of Garch are equivalent
+Beta_Index=Lambda_Index
+
+longrunVariance=sma(laggedVariance,length)
+
+//Use SSE to find optimal Gamma weight
+sseArrayGamma=array.new_float(0)
+for j=1 to (100-Beta_Index)
+    sseGamma=sum(pow((((j/100)*longrunVariance)+((1-Beta_Index-j)/100)*squaredLaggedReturn)+((Beta_Index/100)*laggedVariance),2),length)
+    array.push(sseArrayGamma,sseGamma)
+
+optimalSSEGamma=array.min(sseArrayGamma)
+Gamma_Index=(array.indexof(sseArrayGamma,optimalSSEGamma)+1)
+
+Beta=Beta_Index/100
+Gamma=Gamma_Index/100
+Alpha=1-Beta-Gamma
+//GARCH(1,1) Calculation 
+GARCH=(Gamma*longrunVariance)+(Alpha*squaredLaggedReturn)+(Beta*laggedVariance)
+//Projected Variance
+perForward=input(0,title="How many periods you want to project forward")
+
+//GARCH already projects the variance and deviation for the current day, so if perForward is 0, then the projectedVariance will just equal GARCH.
+projectedVariance=if perForward==0
+    GARCH
+else
+    longrunVariance+pow((Alpha+Beta),perForward)*(GARCH-longrunVariance)
+
+//Projected Deviation Calculation
+projectedDeviation=sqrt(projectedVariance)
+
+//What Data Do You Want Shown
+projection=if  dataChoice=="Projected Variance in %"
+    projectedVariance*100
+else if dataChoice=="Projected Deviation in %"
+    projectedDeviation*100
+
+plot(projection,title="Projected Volatility Data [in percent]", color=color.yellow, offset=perForward,style=plot.style_columns)

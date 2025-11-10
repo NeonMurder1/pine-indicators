@@ -1,0 +1,145 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © BackQuant
+
+//@version=5
+indicator(
+ "Fourier Adjusted Average True Range [BackQuant]", 
+ shorttitle = "FA-ATR [BackQuant]", 
+ overlay = true, 
+ timeframe = "", 
+ timeframe_gaps = true
+ )
+
+import TradingView/ta/7 as ta
+
+// Define User Inputs
+simple bool       showAtr                 =        input.bool(true, "Plot Fourier Atr on Chart?")
+simple int        N                       =        input.int(4, "Fourier Period", group = "Calculation")
+series float      price                   =        input.source(close, "Calculation Source", group = "Calculation")
+simple int        periodAtr               =        input.int(8, "ATR Period", group = "Calculation")
+simple float      factorAtr               =        input.float(1.65, "Factor", step = 0.01, group = "Calculation")
+simple bool       paintCandles            =        input.bool(false, "Paint Candles According to trend?")
+simple bool       showMA                  =        input.bool(false, "Show Atr Moving Average as Confluence?",group = "Confluence")
+string            movingAverageType       =        input.string("Ema", title="MA Type", options=["SMA", "Hull", "Ema", "Wma", "Dema", "LINREG", "RMA"],group = "Confluence")
+simple int        movingAveragePeriod     =        input.int(50, "Moving Average Period", group = "Confluence")
+simple color      longColour              =       input.color(#00ff00, "Long Colour")
+simple color      shortColour             =       input.color(#ff0000, "Short Colour")
+
+// Initialize data arrays
+realParts = array.new_float(0)
+imagParts = array.new_float(0)
+
+// Populate arrays with initial values
+for index = 0 to N - 1
+    array.unshift(realParts, price[N - index - 1])
+    array.unshift(imagParts, 0.0)
+
+// Custom Fourier Transformation Function
+fourier(realData, imagData, direction) =>
+    dataSize = array.size(realData)
+    tempReal = array.new_float(dataSize)
+    tempImag = array.new_float(dataSize)
+
+    // Perform the FFT or IFFT depending on 'direction'
+    for i = 0 to dataSize - 1
+        sumReal = 0.0
+        sumImag = 0.0
+        for j = 0 to dataSize - 1
+            angle = -direction * 2 * math.pi * float(j * i) / float(dataSize)
+            sumReal := sumReal + array.get(realData, j) * math.cos(angle) - array.get(imagData, j) * math.sin(angle)
+            sumImag := sumImag + array.get(realData, j) * math.sin(angle) + array.get(imagData, j) * math.cos(angle)
+        array.set(tempReal, i, sumReal / float(dataSize))
+        array.set(tempImag, i, sumImag / float(dataSize))
+
+    // Copy results back to the original arrays
+    for i = 0 to dataSize - 1
+        array.set(realData, i, array.get(tempReal, i))
+        array.set(imagData, i, array.get(tempImag, i))
+
+fourier(realParts, imagParts, 1)
+
+// Compute magnitude of the complex numbers
+magnitudeArray = array.new_float(array.size(realParts))
+for i = 0 to array.size(realParts) - 1
+    real = array.get(realParts, i)
+    imag = array.get(imagParts, i)
+    array.set(magnitudeArray, i, math.sqrt(real * real + imag * imag))
+
+// Retrieve the DC component magnitude
+dcComponent = array.get(magnitudeArray, 0)
+
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+// Function
+fourieradjusted_atr(fourier, lookback, atrFactor)=>
+
+    atr = ta.atr(lookback)
+    trueRange = atr * atrFactor 
+
+    Ft_atr = fourier 
+    Ft_atr := nz(Ft_atr[1], Ft_atr)
+
+    trueRangeUpper = fourier + trueRange
+    trueRangeLower  = fourier - trueRange 
+
+    if trueRangeLower > Ft_atr 
+        Ft_atr := trueRangeLower
+    if trueRangeUpper < Ft_atr 
+        Ft_atr := trueRangeUpper
+    Ft_atr 
+
+// Function Out
+Ft_atr = fourieradjusted_atr(dcComponent, periodAtr, factorAtr)
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+// Moving Average Switch Type
+movingAverage(source, length, type) =>
+    switch type
+        "SMA" => ta.sma(source, length)
+        "Hull" => ta.hma(source, length)
+        "Ema" => ta.ema(source, length)
+        "Wma" => ta.wma(source, length)
+        "Dema" => ta.dema(source, length)
+        "RMA" => ta.rma(source, length)
+        "LINREG"=> ta.linreg(source, length, 0)
+
+maOut = movingAverage(Ft_atr, movingAveragePeriod, movingAverageType)
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+// Conditions
+Ft_atrLong = ta.crossover(Ft_atr, Ft_atr[1])
+Ft_atrShort = ta.crossunder(Ft_atr, Ft_atr[1])
+
+// Colour Condtions
+var color Trend = #ffffff
+if Ft_atrLong
+    Trend := longColour
+if Ft_atrShort
+    Trend := shortColour
+
+
+// Plotting
+plot(
+ showAtr ? Ft_atr : na, 
+ "ATR", 
+ color=Trend, 
+ linewidth = 2
+ )
+
+barcolor(paintCandles ? Trend : na)
+
+
+plot(showMA ? maOut : na, "Moving Average", color.white, 2, plot.style_line)
+/////////////////////////////////////////////////////////////// © BackQuant ///////////////////////////////////////////////////////////////
+
+// Alerts
+alertcondition(
+ Ft_atrLong, 
+ title="Fourier ATR Trend Up", 
+ message="Fourier ATR Trend Up - {{ticker}} - {{interval}}"
+ )
+
+alertcondition(
+ Ft_atrShort, 
+ title="Fourier ATR Trend Down",
+ message="Fourier ATR Trend Down - {{ticker}} - {{interval}}"
+ )
+
+

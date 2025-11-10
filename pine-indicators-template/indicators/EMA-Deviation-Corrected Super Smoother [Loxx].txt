@@ -1,0 +1,48 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © loxx
+
+//@version=5
+indicator("EMA-Deviation-Corrected Super Smoother [Loxx]", 
+     shorttitle='EDCCSS [Loxx]', 
+     overlay = true, 
+     timeframe="", 
+     timeframe_gaps = true)
+     
+import loxx/loxxmas/1
+
+greencolor = #2DD204
+redcolor = #D2042D
+
+_corMa(src, work, per)=>
+    out = 0.
+    v1 = math.pow(ta.stdev(src, per), 2)
+    v2 = math.pow(nz(out[1]) - work, 2) 
+    c = (v2 < v1 or v2 == 0) ? 0 : 1 - v1 / v2
+    out := nz(out[1]) + c * (work - nz(out[1]))
+    out
+
+src  = input.source(close, "Source", group = "Basic Settings")
+per = input.int(20, "Period", group = "Basic Settings")
+
+colorbars = input.bool(true, "Color bars?", group = "UI Options")
+showsignals = input.bool(true, "Show signals?", group = "UI Options")
+
+[work, _, _] = loxxmas.super(src, per) 
+
+out = _corMa(src, work, per)
+
+goLong =  ta.crossover(work, out)  
+goShort = ta.crossunder(work, out)
+
+colorout =  work > out ? greencolor : redcolor
+colorout2 =  work > out ? color.yellow : color.fuchsia
+
+plot(out, "Corrected Super Smoother", color = colorout, linewidth = 3)
+plot(work, "Super Smoother", color = colorout2, linewidth = 1)
+
+barcolor(colorbars ? colorout : na)
+plotshape(goLong and showsignals, title = "Long", color = color.yellow, textcolor = color.yellow, text = "L", style = shape.triangleup, location = location.belowbar, size = size.tiny)
+plotshape(goShort and showsignals, title = "Short", color = color.fuchsia, textcolor = color.fuchsia, text = "S", style = shape.triangledown, location = location.abovebar, size = size.tiny)
+
+alertcondition(goLong, title="Long", message="Corrected Super Smoother [Loxx]: Long\nSymbol: {{ticker}}\nPrice: {{close}}")
+alertcondition(goShort, title="Short", message="Corrected Super Smoother [Loxx]: Short\nSymbol: {{ticker}}\nPrice: {{close}}")

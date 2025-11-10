@@ -1,0 +1,25 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © ceyhun
+
+//@version=4
+study("FibboGatto",overlay=false)
+period=input(34,title="Moving Average Period")
+Barcolor=input(true,title="Barcolor")
+
+FG=((close+close[1]+close[2]+close[3]+close[5]+close[8]+close[13]+close[21]+close[34]+close[55]+close[89]+close[144])/close)*-1
+
+Up = crossover(FG,ema(FG,period))
+Down = crossunder(FG,ema(FG,period))
+
+Uptrend = (FG>ema(FG,period))
+Downtrend = (FG<ema(FG,period))
+
+colors=(Up ? #0000FF : Down ? color.orange :Uptrend ? color.lime : Downtrend ? #FF0000:na)
+barcolor(Barcolor ? colors : na)
+
+plot(FG,color=colors,linewidth=3,title="FibboGatto")
+plot(ema(FG,period),color=color.black,linewidth=2,title="Mov")
+
+alertcondition(Up, title="Buy Signal", message="Buy")
+alertcondition(Down, title="Sell Signal", message="Sell")
+

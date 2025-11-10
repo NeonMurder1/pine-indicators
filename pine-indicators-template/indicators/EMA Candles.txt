@@ -1,0 +1,8 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © HunterSullivan
+
+//@version=4
+study("EMA Candles", overlay=true)
+l = 50
+m = 10
+plotcandle(ema(open,l), ema(high,l), ema(low,l), ema(close,l), title='Ema Candles', color = ema(open,l) < ema(close,l) ? #fbc02d : #0e73d8, bordercolor=na)

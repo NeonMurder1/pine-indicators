@@ -1,0 +1,113 @@
+//@version=2
+study(title="Fibonacci Period KAMA Series", shorttitle="FPK Series [DW]", overlay=true)
+//by Donovan Wall
+
+//This study is a simple experiment using Kaufman's Adaptive Moving Average that plots a base average with a period of your choice, then plots averages with periods multiplied by Fibonacci numbers 1 through 144.
+
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+//Inputs
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//Source
+src = input(defval=hlc3, title="Source")
+
+//Base Period
+per = input(defval=13, title="Base Sampling Period")
+
+//Smoothing Constant
+fast = input(defval=0.666,  step=0.001,  title="KAMA Series Smoothing Constant Fast End")
+slow = input(defval=0.0645, step=0.0001, title="KAMA Series Smoothing Constant Slow End")
+
+//KAMA Series Toggle Switches
+uk1   = input(defval=true, title="Enable Base KAMA")
+uk2   = input(defval=true, title="Enable x2 Period KAMA")
+uk3   = input(defval=true, title="Enable x3 Period KAMA")
+uk5   = input(defval=true, title="Enable x5 Period KAMA")
+uk8   = input(defval=true, title="Enable x8 Period KAMA")
+uk13  = input(defval=true, title="Enable x13 Period KAMA")
+uk21  = input(defval=true, title="Enable x21 Period KAMA")
+uk34  = input(defval=true, title="Enable x34 Period KAMA")
+uk55  = input(defval=true, title="Enable x55 Period KAMA")
+uk89  = input(defval=true, title="Enable x89 Period KAMA")
+uk144 = input(defval=true, title="Enable x144 Period KAMA")
+
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+//Definitions
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//KAMA Function
+ksrc = close
+kama(ksrc, L)=>
+    dist   = abs(ksrc[0] - ksrc[1])
+    signal = abs(ksrc - ksrc[L])
+    noise  = sum(dist, L)
+    effr   = noise!=0 ? signal/noise : 1
+    sc     = pow(effr*(fast - slow) + slow,2)
+    kama   = nz(kama[1],ksrc) + sc*(ksrc - nz(kama[1], ksrc))
+
+//KAMA Series
+k1   = kama(src, per)
+k2   = kama(src, per*2)
+k3   = kama(src, per*3)
+k5   = kama(src, per*5)
+k8   = kama(src, per*8)
+k13  = kama(src, per*13)
+k21  = kama(src, per*21)
+k34  = kama(src, per*34)
+k55  = kama(src, per*55)
+k89  = kama(src, per*89)
+k144 = kama(src, per*144)
+
+//Colors
+color1    = src > k1 ? lime : src < k1 ? red : black
+color2    = src > k2 ? lime : src < k2 ? red : black
+color3    = src > k3 ? lime : src < k3 ? red : black
+color5    = src > k5 ? lime : src < k5 ? red : black
+color8    = src > k8 ? lime : src < k8 ? red : black
+color13   = src > k13 ? lime : src < k13 ? red : black
+color21   = src > k21 ? lime : src < k21 ? red : black
+color34   = src > k34 ? lime : src < k34 ? red : black
+color55   = src > k55 ? lime : src < k55 ? red : black
+color89   = src > k89 ? lime : src < k89 ? red : black
+color144  = src > k144 ? lime : src < k144 ? red : black
+fcolor1   = src > k1 ? green : src < k1 ? maroon : black
+fcolor2   = src > k2 ? green : src < k2 ? maroon : black
+fcolor3   = src > k3 ? green : src < k3 ? maroon : black
+fcolor5   = src > k5 ? green : src < k5 ? maroon : black
+fcolor8   = src > k8 ? green : src < k8 ? maroon : black
+fcolor13  = src > k13 ? green : src < k13 ? maroon : black
+fcolor21  = src > k21 ? green : src < k21 ? maroon : black
+fcolor34  = src > k34 ? green : src < k34 ? maroon : black
+fcolor55  = src > k55 ? green : src < k55 ? maroon : black
+fcolor89  = src > k89 ? green : src < k89 ? maroon : black
+fcolor144 = src > k144 ? green : src < k144 ? maroon : black
+
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+//Plots
+//----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//KAMA Series Plots
+k144plot = plot(uk144 ? k144 : na, title="x144 Period KAMA (Color 0 = Down, Color 1 = Up)", color=color144, linewidth=1, style=linebr, transp=0)
+k89plot  = plot(uk89  ? k89  : na, title="x89 Period KAMA (Color 0 = Down, Color 1 = Up)",  color=color89,  linewidth=1, style=linebr, transp=0)
+k55plot  = plot(uk55  ? k55  : na, title="x55 Period KAMA (Color 0 = Down, Color 1 = Up)",  color=color55,  linewidth=1, style=linebr, transp=0)
+k34plot  = plot(uk34  ? k34  : na, title="x34 Period KAMA (Color 0 = Down, Color 1 = Up)",  color=color34,  linewidth=1, style=linebr, transp=0)
+k21plot  = plot(uk21  ? k21  : na, title="x21 Period KAMA (Color 0 = Down, Color 1 = Up)",  color=color21,  linewidth=1, style=linebr, transp=0)
+k13plot  = plot(uk13  ? k13  : na, title="x13 Period KAMA (Color 0 = Down, Color 1 = Up)",  color=color13,  linewidth=1, style=linebr, transp=0)
+k8plot   = plot(uk8   ? k8   : na, title="x8 Period KAMA (Color 0 = Down, Color 1 = Up)",   color=color8,   linewidth=1, style=linebr, transp=0)
+k5plot   = plot(uk5   ? k5   : na, title="x5 Period KAMA (Color 0 = Down, Color 1 = Up)",   color=color5,   linewidth=1, style=linebr, transp=0)
+k3plot   = plot(uk3   ? k3   : na, title="x3 Period KAMA (Color 0 = Down, Color 1 = Up)",   color=color3,   linewidth=1, style=linebr, transp=0)
+k2plot   = plot(uk2   ? k2   : na, title="x2 Period KAMA (Color 0 = Down, Color 1 = Up)",   color=color2,   linewidth=1, style=linebr, transp=0)
+k1plot   = plot(uk1   ? k1   : na, title="Base KAMA (Color 0 = Down, Color 1 = Up)",        color=color1,   linewidth=1, style=linebr, transp=0)
+
+//Fills
+fill(k89plot, k144plot, color=fcolor89)
+fill(k55plot, k89plot,  color=fcolor55)
+fill(k34plot, k55plot,  color=fcolor34)
+fill(k21plot, k34plot,  color=fcolor21)
+fill(k13plot, k21plot,  color=fcolor13)
+fill(k8plot,  k13plot,  color=fcolor8)
+fill(k5plot,  k8plot,   color=fcolor5)
+fill(k3plot,  k5plot,   color=fcolor3)
+fill(k2plot,  k3plot,   color=fcolor2)
+fill(k1plot,  k2plot,   color=fcolor1)
+

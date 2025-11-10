@@ -1,0 +1,107 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © BackQuant
+
+
+//@version=5
+indicator(
+ "Fourier For Loop [BackQuant]", 
+ shorttitle="", 
+ overlay=false,timeframe="", 
+ timeframe_gaps=true
+ )
+
+
+const string ui   = "UI Settings"
+const string inputs = "Calculation Settings"
+const string scoring = "Signals"
+xval = input.source(hlc3, "Calculation Source", group = inputs, inline = "2222")
+N = input.int(1, minval=1, title="Calculation Period", group = inputs, inline = "2222")
+start = input.int(1, "Calculation Start", group = inputs,inline = "1s")
+end = input.int(45, maxval = 50, title = "Calculation End", group = inputs,inline = "1s")
+upper = input.int(40, "Long Threshold",group =  scoring)
+lower = input.int(-10, "Short Threshold",group =  scoring)
+
+simple bool showthres = input.bool(true, "Show Threshold Lines?", group = ui)
+simple bool paintCandles = input.bool(false, "Color Bars According to Trend?", group = ui)
+simple bool bgcol_ = input.bool(false, "Background Colour", group = ui)
+
+int linew = input.int(3, "Signal Line Width", 1,4,1, group = ui)
+color longcol = input.color(#00ff00, "Long Colour", group = ui, inline = "xxxx")
+color shortcol = input.color(#ff0000, "Short Colour", group = ui, inline = "xxxx")
+
+DFT(x, y, Nx, _dir) =>
+    float _arg = 0.0
+    float _cos = 0.0
+    float _sin = 0.0
+    float xArr_i = 0.0
+    float yArr_i = 0.0
+    xArr = array.new_float(array.size(x))
+    yArr = array.new_float(array.size(y))
+
+    for i = 0 to Nx - 1 by 1
+        xArr_i := 0.0
+        yArr_i := 0.0
+        kx = float(i) / float(Nx)
+        _arg := -_dir * 2 * math.pi * kx
+        for k = 0 to Nx - 1 by 1
+            _cos := math.cos(k * _arg)
+            _sin := math.sin(k * _arg)
+            xArr_i += array.get(x, k) * _cos - array.get(y, k) * _sin
+            yArr_i += array.get(x, k) * _sin + array.get(y, k) * _cos
+            yArr_i
+        array.set(xArr, i, xArr_i)
+        array.set(yArr, i, yArr_i)
+
+    if _dir == 1
+        for i = 0 to Nx - 1 by 1
+            array.set(x, i, array.get(xArr, i) / float(Nx))
+            array.set(y, i, array.get(yArr, i) / float(Nx))
+    else
+        for i = 0 to Nx - 1 by 1
+            array.set(x, i, array.get(xArr, i))
+            array.set(y, i, array.get(yArr, i))
+
+x = array.new_float(N, 0.0)
+y = array.new_float(N, 0.0)
+for i = 0 to N - 1
+    array.set(x, i, xval[i])
+    array.set(y, i, 0.0)
+
+DFT(x, y, N, 1)
+
+mag = array.new_float(N, 0.0)
+for i = 0 to N - 1
+    mag_i = math.sqrt(math.pow(array.get(x, i), 2) + math.pow(array.get(y, i), 2))
+    array.set(mag, i, mag_i)
+
+subject = array.get(mag,0) 
+
+forloop(start, end) =>
+    return_val  = 0.0
+    for i  = start to end by 1
+        return_val += (subject > subject[i] ? 1 : -1)
+        return_val
+    return_val
+
+score = forloop(start, end)
+
+L = score > upper
+S = ta.crossunder(score, lower) 
+
+var out = 0
+
+if L and not S 
+    out := 1
+
+if S 
+    out := -1
+
+
+plot(score, "FFL", color = out ==  1 ? longcol : out ==  -1 ? shortcol : color.gray, linewidth = linew)
+barcolor(paintCandles ? (out ==  1 ? longcol : out ==  -1 ? shortcol : color.gray) : na)
+plot(showthres?upper:na, "Long Threshold", longcol)
+plot(showthres?lower:na, "Short Threshold", shortcol)
+bgcolor(bgcol_?(out ==  1 ? color.new(longcol,90) : out ==  -1 ? color.new(shortcol,90) : color.gray):na)
+alertcondition(L and not S, title="Fourier FL Long", message="Fourier FL Long - {{ticker}} - {{interval}}")
+alertcondition(S, title="Fourier FL Short", message="Fourier FL Short - {{ticker}} - {{interval}}")
+

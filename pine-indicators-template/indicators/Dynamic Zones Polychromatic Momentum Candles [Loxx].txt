@@ -1,0 +1,110 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © loxx
+
+//@version=5
+indicator("Dynamic Zones Polychromatic Momentum Candles [Loxx]",
+     shorttitle='DZPMC [Loxx]', 
+     overlay = true, 
+     timeframe="", 
+     timeframe_gaps = true)
+
+import loxx/loxxdynamiczone/3
+import loxx/loxxjuriktools/1
+import loxx/loxxexpandedsourcetypes/4
+
+greencolor = #2DD204
+redcolor = #D2042D 
+
+smthtype = input.string("Kaufman", "Heikin-Ashi Better Caculation Type", options = ["AMA", "T3", "Kaufman"], group = "Basic Settings")
+
+srcin = input.string("Close", "Source", group= "Basic Settings", 
+     options = 
+     ["Close", "Open", "High", "Low", "Median", "Typical", "Weighted", "Average", "Average Median Body", "Trend Biased", "Trend Biased (Extreme)", 
+     "HA Close", "HA Open", "HA High", "HA Low", "HA Median", "HA Typical", "HA Weighted", "HA Average", "HA Average Median Body", "HA Trend Biased", "HA Trend Biased (Extreme)",
+     "HAB Close", "HAB Open", "HAB High", "HAB Low", "HAB Median", "HAB Typical", "HAB Weighted", "HAB Average", "HAB Average Median Body", "HAB Trend Biased", "HAB Trend Biased (Extreme)"])
+     
+per = input.int(14, "Period", group = "Basic Settings") 
+
+smthper = input.int(5, "Jurik Smoothing Period", group = "Jurik Filter Settings") 
+phs = input.float(0, "Jurik Phase", group = "Jurik Filter Settings") 
+
+dzper = input.int(35, "Dynamic Zone Period", group = "Dynamic Zone Settings") 
+dzbuyprob  = input.float(0.05, "Dynamic Zone Buy Probability", group = "Dynamic Zone Settings")
+dzsellprob  = input.float(0.05, "Dynamic Zone Buy Probability", group = "Dynamic Zone Settings")
+
+clrup = input.color(greencolor, "Up color", group = "UI Options")
+clrdn = input.color(redcolor, "Down color", group = "UI Options")
+
+kfl=input.float(0.666, title="* Kaufman's Adaptive MA (KAMA) Only - Fast End", group = "Moving Average Inputs")
+ksl=input.float(0.0645, title="* Kaufman's Adaptive MA (KAMA) Only - Slow End", group = "Moving Average Inputs")
+amafl = input.int(2, title="* Adaptive Moving Average (AMA) Only - Fast", group = "Moving Average Inputs")
+amasl = input.int(30, title="* Adaptive Moving Average (AMA) Only - Slow", group = "Moving Average Inputs")
+
+haclose = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, close)
+haopen = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, open)
+hahigh = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, high)
+halow = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, low)
+hamedian = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, hl2)
+hatypical = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, hlc3)
+haweighted = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, hlcc4)
+haaverage = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, ohlc4)
+
+src = switch srcin
+	"Close" => loxxexpandedsourcetypes.rclose()
+	"Open" => loxxexpandedsourcetypes.ropen()
+	"High" => loxxexpandedsourcetypes.rhigh()
+	"Low" => loxxexpandedsourcetypes.rlow()
+	"Median" => loxxexpandedsourcetypes.rmedian()
+	"Typical" => loxxexpandedsourcetypes.rtypical()
+	"Weighted" => loxxexpandedsourcetypes.rweighted()
+	"Average" => loxxexpandedsourcetypes.raverage()
+    "Average Median Body" => loxxexpandedsourcetypes.ravemedbody()
+	"Trend Biased" => loxxexpandedsourcetypes.rtrendb()
+	"Trend Biased (Extreme)" => loxxexpandedsourcetypes.rtrendbext()
+	"HA Close" => loxxexpandedsourcetypes.haclose(haclose)
+	"HA Open" => loxxexpandedsourcetypes.haopen(haopen)
+	"HA High" => loxxexpandedsourcetypes.hahigh(hahigh)
+	"HA Low" => loxxexpandedsourcetypes.halow(halow)
+	"HA Median" => loxxexpandedsourcetypes.hamedian(hamedian)
+	"HA Typical" => loxxexpandedsourcetypes.hatypical(hatypical)
+	"HA Weighted" => loxxexpandedsourcetypes.haweighted(haweighted)
+	"HA Average" => loxxexpandedsourcetypes.haaverage(haaverage)
+    "HA Average Median Body" => loxxexpandedsourcetypes.haavemedbody(haclose, haopen)
+	"HA Trend Biased" => loxxexpandedsourcetypes.hatrendb(haclose, haopen, hahigh, halow)
+	"HA Trend Biased (Extreme)" => loxxexpandedsourcetypes.hatrendbext(haclose, haopen, hahigh, halow)
+	"HAB Close" => loxxexpandedsourcetypes.habclose(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Open" => loxxexpandedsourcetypes.habopen(smthtype, amafl, amasl, kfl, ksl)
+	"HAB High" => loxxexpandedsourcetypes.habhigh(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Low" => loxxexpandedsourcetypes.hablow(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Median" => loxxexpandedsourcetypes.habmedian(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Typical" => loxxexpandedsourcetypes.habtypical(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Weighted" => loxxexpandedsourcetypes.habweighted(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Average" => loxxexpandedsourcetypes.habaverage(smthtype, amafl, amasl, kfl, ksl)
+    "HAB Average Median Body" => loxxexpandedsourcetypes.habavemedbody(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Trend Biased" => loxxexpandedsourcetypes.habtrendb(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Trend Biased (Extreme)" => loxxexpandedsourcetypes.habtrendbext(smthtype, amafl, amasl, kfl, ksl)
+	=> haclose
+	
+sumMom = 0.,sumWgh = 0.
+for k = 0 to per - 1 
+    weight = math.sqrt(k+1)
+    sumMom += (src - nz(src[k+1]))/weight
+    sumWgh += weight
+
+out = 0.
+out := sumWgh != 0 ? loxxjuriktools.jurik_filt(sumMom/sumWgh, smthper, phs) : loxxjuriktools.jurik_filt(0, smthper, phs)
+
+obLine = loxxdynamiczone.dZone("buy", out, dzbuyprob, dzper)
+osLine = loxxdynamiczone.dZone("sell", out, dzsellprob, dzper)
+ratios = 0.
+
+ratio = math.min(out, osLine)
+ratio := math.max(ratio ,obLine)
+ratio := (ratio-obLine)/(osLine-obLine)
+ratios := ratio
+
+colorout = color.from_gradient(100.0 * ratios, 0, 101, clrdn, clrup)
+
+barcolor(colorout)
+
+

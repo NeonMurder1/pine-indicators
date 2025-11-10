@@ -1,0 +1,68 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © RafaelZioni
+
+
+//@version=4
+study("Forex system 10", overlay=true)
+
+src2=low
+src3=high
+Min =input(1440)
+len = timeframe.isintraday and timeframe.multiplier >= 1 ? 
+   Min / timeframe.multiplier * 7 : 
+   timeframe.isintraday and timeframe.multiplier < 60 ? 
+   60 / timeframe.multiplier * 24 * 7 : 7
+
+l1 = wma(src2,len)
+h1 = wma(src3,len)
+//
+m=(h1+l1)/2
+//
+len5 = 100
+
+src5=m
+
+//
+multi = 2
+
+mean = ema(src5, len5)  
+stddev = multi * stdev(src5, len5)  
+b5 = mean + stddev
+s = mean - stddev
+
+
+var bool long = na
+var bool short = na
+
+long :=crossover(src5, s) 
+short :=  crossunder(src5, b5)
+
+var float last_open_long = na
+var float last_open_short = na
+
+last_open_long := long ? close : nz(last_open_long[1])
+last_open_short := short ? close : nz(last_open_short[1])
+
+
+entry_value =last_open_long
+entry_value1=last_open_short
+
+r=100
+//
+highb = highest(entry_value1, r)  
+lowb = lowest(entry_value, r)  
+d5 = highb - lowb  
+me = (highb + lowb) / 2  
+h4 = highb - d5 * 0.236  
+c3 = highb - d5 * 0.382  
+c4 = highb - d5 * 0.618  
+l4 = highb - d5 * 0.764  
+//
+col = close >= me ? color.lime : color.red
+//m5 = plot(me, color=color.blue)  
+b1 = plot(highb, color=col, linewidth=2)  
+s1 = plot(lowb,  color=col, linewidth=2)  
+h5 = plot(h4, color=col, linewidth=2)  
+c5 = plot(c3,  color=col, linewidth=2) 
+cl = plot(c4,  color=col, linewidth=2)  
+l2 = plot(l4,  color=col, linewidth=2) 

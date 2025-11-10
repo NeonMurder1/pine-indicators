@@ -1,0 +1,180 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © loxx
+
+//@version=5
+indicator("GKYZ-Filtered, Non-Linear Regression MA [Loxx]",
+     shorttitle = "GKYZFNLRMA [Loxx]", 
+     overlay = true, 
+     timeframe="", 
+     timeframe_gaps = true)
+
+import loxx/loxxexpandedsourcetypes/4
+
+greencolor = #2DD204
+redcolor = #D2042D 
+
+nonLinearRegression(float src, int per)=>
+    float AvgX = 0
+    float AvgY = 0
+
+    float[] nlrXValue = array.new<float>(per, 0)
+    float[] nlrYValue = array.new<float>(per, 0)
+
+    for i = 0 to per - 1
+        array.set(nlrXValue, i, i)
+        array.set(nlrYValue, i, nz(src[i]))
+        AvgX += array.get(nlrXValue, i)
+        AvgY += array.get(nlrYValue, i)
+    
+    AvgX /= per
+    AvgY /= per
+ 
+    float SXX = 0
+    float SXY = 0
+    float SYY = 0
+    float SXX2 = 0
+    float SX2X2 = 0
+    float SYX2 = 0
+
+    for i = 0 to per - 1
+        float XM = array.get(nlrXValue, i) - AvgX
+        float YM = array.get(nlrYValue, i) - AvgY
+        float XM2 = array.get(nlrXValue, i) * array.get(nlrXValue, i) - AvgX * AvgX
+        SXX += XM * XM
+        SXY += XM * YM
+        SYY += YM * YM
+        SXX2 += XM * XM2
+        SX2X2 += XM2 * XM2
+        SYX2 += YM * XM2
+    
+    float tmp = 0
+    float ACoeff = 0
+    float BCoeff = 0
+    float CCoeff = 0
+
+    tmp := SXX * SX2X2 - SXX2 * SXX2
+
+    if tmp != 0
+        BCoeff := (SXY * SX2X2 - SYX2 * SXX2) / tmp
+        CCoeff := (SXX * SYX2 - SXX2 * SXY) / tmp
+    
+    ACoeff := AvgY - BCoeff * AvgX - CCoeff * AvgX * AvgX
+    tmp := ACoeff + CCoeff 
+    tmp
+
+gkyzvol(int per)=>
+    float gzkylog = math.log(open / nz(close[1]))
+    float pklog = math.log(high / low)
+    float gklog = math.log(close / open)
+    float garmult = (2 * math.log(2) - 1)
+    
+    float gkyzsum = 1 / per * math.sum(math.pow(gzkylog, 2), per)
+    float parkinsonsum = 1 / (2 * per) * math.sum(math.pow(pklog, 2), per)
+    float garmansum = garmult / per * math.sum(math.pow(gklog, 2), per)
+    
+    float sum = gkyzsum + parkinsonsum - garmansum
+    float devpercent = math.sqrt(sum)  
+    devpercent
+
+gkyzFilter(float src, int len, float filter)=>
+    float price = src
+    float filtdev = filter * gkyzvol(len) * src
+    price := math.abs(price - nz(price[1])) < filtdev ? nz(price[1]) : price
+    price
+
+
+smthtype = input.string("Kaufman", "Heikin-Ashi Better Caculation Type", options = ["AMA", "T3", "Kaufman"], group = "Source Settings")
+
+srcin = input.string("Close", "Source", group= "Source Settings", 
+     options = 
+     ["Close", "Open", "High", "Low", "Median", "Typical", "Weighted", "Average", "Average Median Body", "Trend Biased", "Trend Biased (Extreme)", 
+     "HA Close", "HA Open", "HA High", "HA Low", "HA Median", "HA Typical", "HA Weighted", "HA Average", "HA Average Median Body", "HA Trend Biased", "HA Trend Biased (Extreme)",
+     "HAB Close", "HAB Open", "HAB High", "HAB Low", "HAB Median", "HAB Typical", "HAB Weighted", "HAB Average", "HAB Average Median Body", "HAB Trend Biased", "HAB Trend Biased (Extreme)"])
+
+per = input.int(60, "Period", group = "Basic Settings")
+
+filterop = input.string("Both", "Filter Options", options = ["Price", "GKYZFNLRMA", "Both", "None"], group=  "Filter Settings")
+filter = input.float(0.5, "Filter Multiple", minval = 0, group= "Filter Settings")
+filterperiod = input.int(15, "Filter Period", minval = 0, group= "Filter Settings")
+
+colorbars = input.bool(true, "Color bars?", group= "UI Options")
+showSigs = input.bool(true, "Show Signals?", group = "UI Options")
+
+kfl=input.float(0.666, title="* Kaufman's Adaptive MA (KAMA) Only - Fast End", group = "Moving Average Inputs")
+ksl=input.float(0.0645, title="* Kaufman's Adaptive MA (KAMA) Only - Slow End", group = "Moving Average Inputs")
+amafl = input.int(2, title="* Adaptive Moving Average (AMA) Only - Fast", group = "Moving Average Inputs")
+amasl = input.int(30, title="* Adaptive Moving Average (AMA) Only - Slow", group = "Moving Average Inputs")
+
+haclose = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, close)
+haopen = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, open)
+hahigh = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, high)
+halow = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, low)
+hamedian = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, hl2)
+hatypical = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, hlc3)
+haweighted = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, hlcc4)
+haaverage = request.security(ticker.heikinashi(syminfo.tickerid), timeframe.period, ohlc4)
+
+float src = switch srcin
+	"Close" => loxxexpandedsourcetypes.rclose()
+	"Open" => loxxexpandedsourcetypes.ropen()
+	"High" => loxxexpandedsourcetypes.rhigh()
+	"Low" => loxxexpandedsourcetypes.rlow()
+	"Median" => loxxexpandedsourcetypes.rmedian()
+	"Typical" => loxxexpandedsourcetypes.rtypical()
+	"Weighted" => loxxexpandedsourcetypes.rweighted()
+	"Average" => loxxexpandedsourcetypes.raverage()
+    "Average Median Body" => loxxexpandedsourcetypes.ravemedbody()
+	"Trend Biased" => loxxexpandedsourcetypes.rtrendb()
+	"Trend Biased (Extreme)" => loxxexpandedsourcetypes.rtrendbext()
+	"HA Close" => loxxexpandedsourcetypes.haclose(haclose)
+	"HA Open" => loxxexpandedsourcetypes.haopen(haopen)
+	"HA High" => loxxexpandedsourcetypes.hahigh(hahigh)
+	"HA Low" => loxxexpandedsourcetypes.halow(halow)
+	"HA Median" => loxxexpandedsourcetypes.hamedian(hamedian)
+	"HA Typical" => loxxexpandedsourcetypes.hatypical(hatypical)
+	"HA Weighted" => loxxexpandedsourcetypes.haweighted(haweighted)
+	"HA Average" => loxxexpandedsourcetypes.haaverage(haaverage)
+    "HA Average Median Body" => loxxexpandedsourcetypes.haavemedbody(haclose, haopen)
+	"HA Trend Biased" => loxxexpandedsourcetypes.hatrendb(haclose, haopen, hahigh, halow)
+	"HA Trend Biased (Extreme)" => loxxexpandedsourcetypes.hatrendb(haclose, haopen, hahigh, halow)
+	"HAB Close" => loxxexpandedsourcetypes.habclose(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Open" => loxxexpandedsourcetypes.habopen(smthtype, amafl, amasl, kfl, ksl)
+	"HAB High" => loxxexpandedsourcetypes.habhigh(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Low" => loxxexpandedsourcetypes.hablow(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Median" => loxxexpandedsourcetypes.habmedian(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Typical" => loxxexpandedsourcetypes.habtypical(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Weighted" => loxxexpandedsourcetypes.habweighted(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Average" => loxxexpandedsourcetypes.habaverage(smthtype, amafl, amasl, kfl, ksl)
+    "HAB Average Median Body" => loxxexpandedsourcetypes.habavemedbody(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Trend Biased" => loxxexpandedsourcetypes.habtrendb(smthtype, amafl, amasl, kfl, ksl)
+	"HAB Trend Biased (Extreme)" => loxxexpandedsourcetypes.habtrendbext(smthtype, amafl, amasl, kfl, ksl)
+	=> haclose
+
+src := filterop == "Both" or filterop == "Price" and filter > 0 ? gkyzFilter(src, filterperiod, filter) : src
+
+out = nonLinearRegression(src, per)
+
+out := filterop == "Both" or filterop == "GKYZFNLRMA" and filter > 0 ? gkyzFilter(out, filterperiod, filter) : out
+
+sig = out[1]
+
+goLong_pre = ta.crossover(out, sig)
+goShort_pre = ta.crossunder(out, sig)
+
+contSwitch = 0
+contSwitch := nz(contSwitch[1])
+contSwitch := goLong_pre ? 1 : goShort_pre ? -1 : contSwitch
+
+goLong = goLong_pre and ta.change(contSwitch)
+goShort = goShort_pre and ta.change(contSwitch)
+
+colorout = contSwitch == 1  ? greencolor : redcolor
+
+barcolor(colorbars ? colorout : na)
+plot(out, "GKYZFNLRMA", color = colorout, linewidth = 3)
+
+plotshape(showSigs and goLong, title = "Long", color = color.yellow, textcolor = color.yellow, text = "L", style = shape.triangleup, location = location.belowbar, size = size.tiny)
+plotshape(showSigs and goShort, title = "Short", color = color.fuchsia, textcolor = color.fuchsia, text = "S", style = shape.triangledown, location = location.abovebar, size = size.tiny)
+
+alertcondition(goLong, title="Long", message="JFD-Adaptive, GKYZ-Filtered KAMA [Loxx]: Long\nSymbol: {{ticker}}\nPrice: {{close}}")
+alertcondition(goShort, title="Short", message="JFD-Adaptive, GKYZ-Filtered KAMA [Loxx]: Short\nSymbol: {{ticker}}\nPrice: {{close}}")

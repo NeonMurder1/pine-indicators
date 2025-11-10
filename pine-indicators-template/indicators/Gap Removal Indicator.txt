@@ -1,0 +1,86 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © wbburgin
+
+//@version=5
+indicator("Gap Removal Indicator", overlay=false)
+import wbburgin/wbburgin_utils/2 as utils
+
+candleType = input.string("Candlestick",options=["Candlestick","Heikin-Ashi"],title="Candle Type",group="General")
+
+emaActive = input.bool(true,"EMA 1",inline="EMA",group="Exponential Moving Average")
+emaLength = input.int(50,"",inline="EMA",group="Exponential Moving Average")
+emaColor = input.color(color.yellow,"",inline="EMA",group="Exponential Moving Average")
+
+emaActive2 = input.bool(true,"EMA 2",inline="EMA2",group="Exponential Moving Average")
+emaLength2 = input.int(14,"",inline="EMA2",group="Exponential Moving Average")
+emaColor2 = input.color(color.red,"",inline="EMA2",group="Exponential Moving Average")
+
+bbActive = input.bool(true,"Bollinger Bands",inline="BB",group="Bollinger Bands")
+bbLength = input.int(14,"",inline="BB",group="Bollinger Bands")
+bbMult = input.float(2.0,"",inline="BB",group="Bollinger Bands")
+bbColor = input.color(color.aqua,"",inline="BB",group="Bollinger Bands")
+
+stActive = input.bool(true,"Supertrend",inline="ST",group="Supertrend")
+stLength = input.int(14,"",inline="ST",group="Supertrend")
+stMult = input.float(2.0,"",inline="ST",group="Supertrend")
+stColor1 = input.color(color.lime,"",inline="ST",group="Supertrend")
+stColor2 = input.color(color.purple,"",inline="ST",group="Supertrend")
+
+daychange = ta.change(dayofmonth)
+gapup = daychange and open > math.max(open,close)[1]
+gapdown = daychange and open < math.min(open,close)[1]
+
+downgap_change = math.min(open,close)[1] - open
+upgap_change = open - math.max(open,close)[1]
+
+var gap_jumper = close
+var cumul_up = 0.
+var cumul_dn = 0.
+
+if gapup
+    gap_jumper := gap_jumper + upgap_change
+    cumul_up += upgap_change
+if gapdown
+    gap_jumper := gap_jumper - downgap_change
+    cumul_dn += downgap_change
+
+cumulativegap = cumul_up - cumul_dn
+ga_p = close - cumulativegap
+
+g_open = switch
+    candleType == "Candlestick" => ga_p[1]
+    candleType == "Heikin-Ashi" => (ga_p[2]+ga_p[1])/2
+g_high = (high / math.max(open,close)) * ga_p
+g_low = (low / math.min(open,close)) * ga_p
+g_close = switch
+    candleType == "Candlestick" => ga_p
+    candleType == "Heikin-Ashi" => (ga_p[1] + g_high + g_low + ga_p) / 4
+
+// EMA
+ema = ta.ema(g_close,emaLength)
+ema2 = ta.ema(g_close,emaLength2)
+
+// Bollinger Bands
+[middle,upper,lower] = ta.bb(g_close, bbLength, bbMult)
+
+// Supertrend
+[supertrend,direction] = utils.supertrend_anysource(g_close, stMult, stLength)
+
+// Display
+r = math.abs((g_close/g_open)-1)
+increasingRate = r > r[1]
+gapColor = g_close > g_open ? increasingRate ? #26A69A : #B2DFDB : increasingRate ? #FF5252 : #FFCDD2
+plotcandle(g_open,g_high,g_low,g_close,color = gapColor,bordercolor = gapColor, title="Gap-Adjusted Candles")
+
+plot(emaActive ? ema : na, color = emaColor, title = "EMA 1")
+plot(emaActive2 ? ema2 : na, color = emaColor2, title = "EMA 2")
+
+plot(bbActive ? upper : na, color = bbColor, title = "Bollinger Bands - Top")
+plot(bbActive ? lower : na, color = bbColor, title = "Bollinger Bands - Bottom")
+
+s_top = plot(stActive and direction == 1 ? supertrend : na, color = stColor2, title = "Supertrend - Top",style=plot.style_linebr)
+s_bot = plot(stActive and direction == -1 ? supertrend : na, color = stColor1, title = "Supertrend - Bottom",style=plot.style_linebr)
+hlc3p = plot(math.avg(g_high,g_low,g_close),color =na, editable = false)
+
+fill(s_top,hlc3p, color = color.new( stColor2, 75))
+fill(s_bot,hlc3p, color = color.new( stColor1, 75))

@@ -1,0 +1,587 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © KioseffTrading
+
+// -----------------------------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------------------------------------------
+// Shoutout to Duyck (JD) for instructing how to sort the elements in one array based on the values of a separate array!!!
+// https://www.tradingview.com/script/Mzc4dmq7-ma-sorter-sort-by-array-example-JD/  <----- (Duyck's original array script)
+// -----------------------------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------------------------------------------
+// -----------------------------------------------------------------------------------------------------------------------
+// 
+//@version=5
+indicator("Find Best Performing MA For Price Crossover", overlay = true)
+
+dataType = input.string(defval = "Custom", title = "MA Data Type", options = ["Benchmark", "Custom"])
+instructions = input.string(defval = "Off", title = "Indicator Instructions", options = ["Off", "On"])
+
+c = input.source(close, title = "Benchmark MA Source")
+d = input.int(50, title = "Benchmark MA Length")
+a = input.source(close, title = "TEST MA Source")
+b = input.int(50, title = "TEST MA Length", minval = 2)
+MA = input.string(defval = "Best Performing", title = "Plot MA?", options = ["Best Performing", "SMA", "EMA", "ALMA", "HMA", "WMA", "VWMA", "LSMA", "OFF"])
+show = input.string(title = "Show Other MAs ? (If Best Performing Is Selected)", defval = "Light", options = ["Light", "Full", "Off"], group = "Best Performing MA Customization")
+
+
+smaB = ta.sma(c, d)
+emaB = ta.ema(c, d)
+almaB = ta.alma(c, d, 0.85, 6)
+hmaB = ta.hma(c, d)
+wmaB = ta.wma(c, d)
+vwmaB = ta.vwma(c, d)
+rmaB = ta.rma(c, d)
+lsB = ta.linreg(c, d, 0)
+
+
+sma5 = ta.sma(a, b)
+ema5 = ta.ema(a, b)
+alma5 = ta.alma(a, b, 0.85, 6)
+hma5 = ta.hma(a, b)
+wma5 = ta.wma(a, b)
+vwma5 = ta.vwma(a, b)
+rma5 = ta.rma(a, b)
+ls5 = ta.linreg(a, b, 0)
+
+
+// SMA
+var int smacount = 0
+var int smacount2 = 0
+var float smap = 0.0
+var float smap1 = 0.0
+var int counts = 0
+var int counts1 = 0
+
+if ta.crossover(c, smaB) and smacount == 0
+    smap := close
+    smacount := 1
+    counts := bar_index
+if ta.crossunder(c, smaB) and smacount == 1
+    smacount := 0
+    smap1 := ((close / smap) - 1) * 100
+    smap1 := smap1[1] + smap1
+    smacount2 += 1
+    counts1 := bar_index - counts
+    counts1 := counts1[1] + counts1
+
+finsmap = (smap1 / smacount2)
+fincounts = counts1 / smacount2
+
+// EMA
+
+var int emacount = 0
+var int emacount2 = 0
+var float emap = 0.0
+var float emap1 = 0.0
+var int counte = 0
+var int counte1 = 0
+
+if ta.crossover(c, emaB) and emacount == 0
+    emap := close
+    emacount := 1
+    counte := bar_index
+if ta.crossunder(c, emaB) and emacount == 1
+    emacount := 0
+    emap1 := ((close / emap) - 1) * 100
+    emap1 := emap1[1] + emap1
+    emacount2 += 1
+    counte1 := bar_index - counte
+    counte1 := counte1[1] + counte1
+
+finemap = (emap1 / emacount2)
+fincounte = counte1 / emacount2
+// ALMA
+
+var int almacount = 0
+var int almacount2 = 0
+var float almap = 0.0
+var float almap1 = 0.0
+var int counta = 0
+var int counta1 = 0
+
+if ta.crossover(c, almaB) and almacount == 0
+    almap := close
+    almacount := 1
+    counta := bar_index
+if ta.crossunder(c, almaB) and almacount == 1
+    almacount := 0
+    almap1 := ((close / almap) - 1) * 100
+    almap1 := almap1[1] + almap1
+    almacount2 += 1
+    counta1 := bar_index - counta
+    counta1 := counta1[1] + counta1
+
+finalmap = (almap1 / almacount2)
+fincounta = counta1 / almacount2
+// HMA
+
+var int hmacount = 0
+var int hmacount2 = 0
+var float hmap = 0.0
+var float hmap1 = 0.0
+var int counth = 0
+var int counth1 = 0
+if ta.crossover(c, hmaB) and hmacount == 0
+    hmap := close
+    hmacount := 1
+    counth := bar_index
+if ta.crossunder(c, hmaB) and hmacount == 1
+    hmacount := 0
+    hmap1 := ((close / hmap) - 1) * 100
+    hmap1 := hmap1[1] + hmap1
+    hmacount2 += 1
+    counth1 := bar_index - counth
+    counth1 := counth1[1] + counth1
+
+finhmap = (hmap1 / hmacount2)
+fincounth = counth1 / hmacount2
+
+// WMA
+
+var int wmacount = 0
+var int wmacount2 = 0
+var float wmap = 0.0
+var float wmap1 = 0.0
+var int countw = 0
+var int countw1 = 0
+if ta.crossover(c, wmaB) and wmacount == 0
+    wmap := close
+    wmacount := 1
+    countw := bar_index
+if ta.crossunder(c, wmaB) and wmacount == 1
+    wmacount := 0
+    wmap1 := ((close / wmap) - 1) * 100
+    wmap1 := wmap1[1] + wmap1
+    wmacount2 += 1
+    countw1 := bar_index - countw
+    countw1 := countw1[1] + countw1
+finwmap = (wmap1 / wmacount2)
+fincountw = countw1 / wmacount2
+
+// VWMA
+
+var int vwmacount = 0
+var int vwmacount2 = 0
+var float vwmap = 0.0
+var float vwmap1 = 0.0
+var int countvw = 0
+var int countvw1 = 0
+if ta.crossover(c, vwmaB) and vwmacount == 0
+    vwmap := close
+    vwmacount := 1
+    countvw := bar_index
+if ta.crossunder(c, vwmaB) and vwmacount == 1
+    vwmacount := 0
+    vwmap1 := ((close / vwmap) - 1) * 100
+    vwmap1 := vwmap1[1] + vwmap1
+    vwmacount2 += 1
+    countvw1 := bar_index - countvw
+    countvw1 := countvw1[1] + countvw1
+
+finvwmap = (vwmap1 / vwmacount2)
+fincountvw = countvw1 / vwmacount2
+
+// ls
+
+var int lscount = 0
+var int lscount2 = 0
+var float lsp = 0.0
+var float lsp1 = 0.0
+var int countls = 0
+var int countls1 = 0
+if ta.crossover(c, lsB) and lscount == 0
+    lsp := close
+    lscount := 1
+    countls := bar_index
+if ta.crossunder(c, lsB) and lscount == 1
+    lscount := 0
+    lsp1 := ((close / lsp) - 1) * 100
+    lsp1 := lsp1[1] + lsp1
+    lscount2 += 1
+    countls1 := bar_index - countls
+    countls1 := countls1[1] + countls1
+
+finlsp = (lsp1 / lscount2)
+fincountls = countls1 / lscount2
+
+// SMA
+var int smacountx = 0
+var int smacount2x = 0
+var float smapx = 0.0
+var float smap1x = 0.0
+var int countsx = 0
+var int countsx1 = 0
+
+if ta.crossover(a, sma5) and smacountx == 0
+    smapx := close
+    smacountx := 1
+    countsx := bar_index
+if ta.crossunder(a, sma5) and smacountx == 1
+    smacountx := 0
+    smap1x := ((close / smapx) - 1) * 100
+    smap1x := smap1x[1] + smap1x
+    smacount2x += 1
+    countsx1 := bar_index - countsx
+    countsx1 := countsx1[1] + countsx1 
+
+
+finsmapx = (smap1x / smacount2x)
+fincountsx = countsx1 / smacount2x
+// EMA
+
+var int emacountx = 0
+var int emacount2x = 0
+var float emapx = 0.0
+var float emap1x = 0.0
+var int countex = 0 
+var int countex1 = 0
+if ta.crossover(a, ema5) and emacountx == 0
+    emapx := close
+    emacountx := 1
+    countex := bar_index
+if ta.crossunder(a, ema5) and emacountx == 1
+    emacountx := 0
+    emap1x := ((close / emapx) - 1) * 100
+    emap1x := emap1x[1] + emap1x
+    emacount2x += 1
+    countex1 := bar_index - countex
+    countex1 := countex1[1] + countex1
+
+finemapx = (emap1x / emacount2x)
+fincountex = countex1 / emacount2x
+// ALMA
+
+var int almacountx = 0
+var int almacount2x = 0
+var float almapx = 0.0
+var float almap1x = 0.0
+var int countax = 0
+var int countax1 = 0
+if ta.crossover(a, alma5) and almacountx == 0
+    almapx := close
+    almacountx := 1
+    countax := bar_index
+if ta.crossunder(a, alma5) and almacountx == 1
+    almacountx := 0
+    almap1x := ((close / almapx) - 1) * 100
+    almap1x := almap1x[1] + almap1x
+    almacount2x += 1
+    countax1 := bar_index - countax
+    countax1 := countax1[1] + countax1
+
+finalmapx = (almap1x / almacount2x)
+fincountax = countax1 / almacount2x
+// HMA
+
+var int hmacountx = 0
+var int hmacount2x = 0
+var float hmapx = 0.0
+var float hmap1x = 0.0
+var int counthx = 0
+var int counthx1 = 0
+if ta.crossover(a, hma5) and hmacountx == 0
+    hmapx := close
+    hmacountx := 1
+    counthx := bar_index
+if ta.crossunder(a, hma5) and hmacountx == 1
+    hmacountx := 0
+    hmap1x := ((close / hmapx) - 1) * 100
+    hmap1x := hmap1x[1] + hmap1x
+    hmacount2x += 1
+    counthx1 := bar_index - counthx
+    counthx1 := counthx1[1] + counthx1
+
+finhmapx = (hmap1x / hmacount2x)
+fincounthx = counthx1 / hmacount2x
+// WMA
+
+var int wmacountx = 0
+var int wmacount2x = 0
+var float wmapx = 0.0
+var float wmap1x = 0.0
+var int countwx = 0
+var int countwx1 = 0 
+
+if ta.crossover(a, wma5) and wmacountx == 0
+    wmapx := close
+    wmacountx := 1
+    countwx := bar_index
+if ta.crossunder(a, wma5) and wmacountx == 1
+    wmacountx := 0
+    wmap1x := ((close / wmapx) - 1) * 100
+    wmap1x := wmap1x[1] + wmap1x
+    wmacount2x += 1
+    countwx1 := bar_index - countwx
+    countwx1 := countwx1[1] + countwx1
+
+finwmapx = (wmap1x / wmacount2x)
+fincountwx = countwx1 / wmacount2x
+
+// VWMA
+
+var int vwmacountx = 0
+var int vwmacount2x = 0
+var float vwmapx = 0.0
+var float vwmap1x = 0.0
+var int countvwx = 0
+var int countvwx1 = 0
+
+if ta.crossover(a, vwma5) and vwmacountx == 0
+    vwmapx := close
+    vwmacountx := 1
+    countvwx := bar_index
+if ta.crossunder(a, vwma5) and vwmacountx == 1
+    vwmacountx := 0
+    vwmap1x := ((close / vwmapx) - 1) * 100
+    vwmap1x := vwmap1x[1] + vwmap1x
+    vwmacount2x += 1
+    countvwx1 := bar_index - countvwx
+    countvwx1 := countvwx1[1] + countvwx1
+
+finvwmapx= (vwmap1x / vwmacount2x)
+fincountvwx = countvwx1 / vwmacount2x
+// ls
+
+var int lscountx = 0
+var int lscount2x = 0
+var float lspx = 0.0
+var float lsp1x = 0.0
+var int countlsx = 0
+var int countlsx1 = 0
+if ta.crossover(a, ls5) and lscountx == 0
+    lspx := close
+    lscountx := 1
+    countlsx := bar_index
+if ta.crossunder(a, ls5) and lscountx == 1
+    lscountx := 0
+    lsp1x := ((close / lspx) - 1) * 100
+    lsp1x := lsp1x[1] + lsp1x
+    lscount2x += 1
+    countlsx1 := bar_index - countlsx
+    countlsx1 := countlsx1[1] + countlsx1
+finlspx = (lsp1x / lscount2x)
+fincountlsx = countlsx1 / lscount2x
+
+
+f_sort_by_array(_array1, _array2, _array3, _array4) =>
+    _array1_size    = array.size(_array1)
+    _array1_sorted  = array.new_string(_array1_size)
+    _array3_sorted = array.copy(_array3)
+    _array4_sorted = array.copy(_array4)
+    _array2_sorted  = array.copy(_array2)
+    if _array1_size == array.size(_array2) and _array1_size == array.size(_array2)
+        array.sort(_array2_sorted, order.descending)
+        for i = 0 to _array1_size - 1
+            _sorted_value    = array.get(_array2_sorted, i)
+            _unsorted_index  = math.max(0, array.indexof(_array2, _sorted_value))
+            _unsorted_value  = array.get (_array1, _unsorted_index)
+            _unsorted_value2 = array.get(_array3, _unsorted_index)
+            _unsorted_value3 = array.get(_array4, _unsorted_index)
+            array.set(_array1_sorted, i, _unsorted_value)
+            array.set(_array3_sorted, i, _unsorted_value2)
+            array.set(_array4_sorted, i, _unsorted_value3)
+    
+    [_array1_sorted, _array2_sorted, _array3_sorted, _array4_sorted]
+
+f_sort_by_array(_array1x, _array2x) =>
+    _array1_sizex    = array.size(_array1x)
+    _array1_sortedx  = array.new_string(_array1_sizex)
+    _array2_sortedx = array.copy(_array2x)
+    if _array1_sizex == array.size(_array2x) 
+        array.sort(_array2_sortedx, order.descending)
+        for i = 0 to _array1_sizex - 1
+            _sorted_valuex    = array.get(_array2_sortedx, i)
+            _unsorted_indexx  = math.max(0, array.indexof(_array2x, _sorted_valuex))
+            _unsorted_valuex  = array.get (_array1x, _unsorted_indexx)
+            array.set(_array1_sortedx, i, _unsorted_valuex)
+
+    [_array1_sortedx, _array2_sortedx]
+
+best = array.new_float(7)
+array.set(best, 0, dataType == "Benchmark" ? smap1 : smap1x), 
+array.set(best, 1, dataType == "Benchmark" ? emap1 : emap1x), 
+array.set(best, 2,dataType == "Benchmark" ?  almap1 : almap1x)
+array.set(best, 3, dataType == "Benchmark" ? hmap1 : hmap1x), 
+array.set(best, 4, dataType == "Benchmark" ? wmap1 : wmap1x), 
+array.set(best, 5, dataType == "Benchmark" ? vwmap1 : vwmap1x)
+array.set(best, 6, dataType == "Benchmark" ? lsp1 : lsp1x)
+best1 = array.new_string(7)
+array.set(best1, 0, "SMA"), 
+array.set(best1, 1, "EMA"), 
+array.set(best1, 2, "ALMA")
+array.set(best1, 3, "HMA"), 
+array.set(best1, 4, "WMA"), 
+array.set(best1, 5, "VWMA")
+array.set(best1, 6, "LSMA")
+[bestname_sorted, best_sorted] = f_sort_by_array(best1, best)
+array.reverse(best_sorted)
+array.reverse(bestname_sorted)
+
+orgname   = array.new_string(7)
+org  = array.new_float(7)
+org1 = array.new_float(7)
+org2 = array.new_int(7)
+sma = finsmap, array.set(orgname, 0, "SMA"), 
+     array.set(org, 0, dataType == "Benchmark" ? finsmap : finsmapx), 
+         array.set(org1, 0, dataType == "Benchmark" ? fincounts : fincountsx), 
+             array.set(org2, 0, dataType == "Benchmark" ? smacount2 : smacount2x)
+ema = finemap, array.set(orgname, 1, "EMA"), 
+     array.set(org, 1, dataType == "Benchmark" ? finemap : finemapx), 
+         array.set(org1, 1, dataType == "Benchmark" ? fincounte : fincountex), 
+             array.set(org2, 1, dataType == "Benchmark" ? emacount2 : emacount2x)
+alma = finalmap, array.set(orgname, 2, "ALMA"), 
+     array.set(org, 2, dataType == "Benchmark" ? finalmap : finalmapx), 
+         array.set(org1, 2, dataType == "Benchmark" ? fincounta : fincountax), 
+             array.set(org2, 2, dataType == "Benchmark" ? almacount2 : almacount2x)
+hma = finhmap, array.set(orgname, 3, "HMA"), 
+     array.set(org, 3, dataType == "Benchmark" ? finhmap : finhmapx), 
+         array.set(org1, 3, dataType == "Benchmark" ? fincounth : fincounthx), 
+             array.set(org2, 3, dataType == "Benchmark" ? hmacount2 : hmacount2x)
+wma = finwmap, array.set(orgname, 4, "WMA"), 
+     array.set(org, 4, dataType == "Benchmark" ? finwmap : finwmapx), 
+         array.set(org1, 4, dataType == "Benchmark" ? fincountw : fincountwx), 
+             array.set(org2, 4, dataType == "Benchmark" ? wmacount2 : wmacount2x)
+vwma = finvwmap, array.set(orgname, 5, "VWMA"), 
+     array.set(org, 5, dataType == "Benchmark" ? finvwmap : finvwmapx), 
+         array.set(org1, 5, dataType == "Benchmark" ? fincountvw : fincountvwx), 
+             array.set(org2, 5, dataType == "Benchmark" ? vwmacount2 : vwmacount2x)
+lsma = finlsp, array.set(orgname, 6, "LSMA"),
+     array.set(org, 6,dataType == "Benchmark" ? finlsp : finlspx), 
+         array.set(org1, 6, dataType == "Benchmark" ? fincountls : fincountlsx), 
+             array.set(org2, 6, dataType == "Benchmark" ? lscount2 : lscount2x)
+[orgname_sorted, org_sorted, org1_sorted, org2_sorted] = f_sort_by_array(orgname, org, org1, org2)
+
+
+x = plot(MA == "Best Performing" ? sma5 
+     : na, 
+         color = MA == "Best Performing" and array.max(best) == array.get(best, 0) ? color.from_gradient(close, sma5 - 10, sma5 + 10, #ff0500, #03ff00) : 
+             MA == "Best Performing" and array.max(best) != array.get(best,0) and show == "Full" ? color.green : 
+                  MA == "Best Performing" and array.max(best) != array.get(best,0) and show == "Light" ? color.new(color.black, 50) : color.new(color.black, 100), 
+                         linewidth = 2)
+x1 = plot(MA == "Best Performing" ? ema5 
+     : na, 
+         color = MA == "Best Performing" and array.max(best) == array.get(best, 1) ? color.from_gradient(close, ema5 - 10, ema5 + 10, #ff0500, #03ff00) : 
+             MA == "Best Performing" and array.max(best) != array.get(best,1) and show == "Full" ? color.orange : 
+                  MA == "Best Performing" and array.max(best) != array.get(best,1) and show == "Light" ? color.new(color.black, 50) : color.new(color.black, 100), 
+                     linewidth = 2)
+x2 = plot(MA == "Best Performing" ? alma5 
+     : na, 
+         color = MA == "Best Performing" and array.max(best) == array.get(best, 2) ? color.from_gradient(close, alma5 - 10, alma5 + 10, #ff0500, #03ff00) : 
+             MA == "Best Performing" and array.max(best) != array.get(best,2) and show == "Full" ? color.yellow : 
+                  MA == "Best Performing" and array.max(best) != array.get(best,2) and show == "Light" ? color.new(color.black, 50) : color.new(color.black, 100),
+                     linewidth = 2)
+x3 = plot(MA == "Best Performing" ? hma5 
+     : na,
+         color = MA == "Best Performing" and array.max(best) == array.get(best, 3) ? color.from_gradient(close, hma5 - 10, hma5 + 10, #ff0500, #03ff00) :
+             MA == "Best Performing" and array.max(best) != array.get(best,3) and show == "Full" ? color.blue : 
+                  MA == "Best Performing" and array.max(best) != array.get(best,3) and show == "Light" ? color.new(color.black, 50) : color.new(color.black, 100), 
+                     linewidth = 2)
+x4 = plot(MA == "Best Performing" ? wma5 
+     : na, 
+         color = MA == "Best Performing" and array.max(best) == array.get(best, 4) ? color.from_gradient(close, wma5 - 10, wma5 + 10, #ff0500, #03ff00) : 
+             MA == "Best Performing" and array.max(best) != array.get(best,4) and show == "Full" ? color.purple : 
+                  MA == "Best Performing" and array.max(best) != array.get(best,4) and show == "Light" ? color.new(color.black, 50) : color.new(color.black, 100), 
+                     linewidth = 2)
+x5 = plot(MA == "Best Performing" ? vwma5 
+     : na, 
+         color = MA == "Best Performing" and array.max(best) == array.get(best, 5) ? color.from_gradient(close, vwma5 - 10, vwma5 + 10, #ff0500, #03ff00) : 
+             MA == "Best Performing" and array.max(best) != array.get(best,5) and show == "Full" ? color.gray : 
+                  MA == "Best Performing" and array.max(best) != array.get(best,5) and show == "Light" ? color.new(color.black, 50) : color.new(color.black, 100), 
+                     linewidth = 2)
+x6 = plot(MA == "Best Performing" ? ls5 
+     : na,  
+         color = MA == "Best Performing" and array.max(best) == array.get(best, 6) ? color.from_gradient(close, ls5 - 10, ls5 + 10, #ff0500, #03ff00) : 
+             MA == "Best Performing" and array.max(best) != array.get(best,6) and show == "Full" ? color.teal : 
+                  MA == "Best Performing" and array.max(best) != array.get(best,6) and show == "Light" ? color.new(color.black, 50) : color.new(color.black, 100), 
+                     linewidth = 2)
+
+var table t2 = na
+if MA == "Best Performing" and barstate.islast
+    t2 := table.new(position.top_right, 10, 10, bgcolor = array.max(best) == array.get(best, 0) ? 
+         color.from_gradient(close, sma5 - 10, sma5 + 10, color.new(#ff0500, 33), color.new(#03ff00, 33)) : 
+             array.max(best) == array.get(best, 1) ? 
+                 color.from_gradient(close, ema5 - 10, ema5 + 10, color.new(#ff0500, 33), color.new(#03ff00, 33)) : 
+                     array.max(best) == array.get(best, 2) ? 
+                         color.from_gradient(close, alma5 - 10, alma5 + 10, color.new(#ff0500, 33), color.new(#03ff00, 33)) :
+                             array.max(best) == array.get(best, 3) ? 
+                                 color.from_gradient(close, hma5 - 10, hma5 + 10, color.new(#ff0500, 33), color.new(#03ff00, 33)) :
+                                     array.max(best) == array.get(best, 4) ? 
+                                          color.from_gradient(close, wma5 - 10, wma5 + 10, color.new(#ff0500, 33), color.new(#03ff00, 33)) :
+                                             array.max(best) == array.get(best, 5) ? 
+                                                 color.from_gradient(close, vwma5 - 10, vwma5 + 10, color.new(#ff0500, 33), color.new(#03ff00, 33)) :
+                                                     array.max(best) == array.get(best, 6) ? 
+                                                         color.from_gradient(close, ls5 - 10, ls5 + 10, color.new(#ff0500, 33), color.new(#03ff00, 33)) :
+                                                             MA != "Best Performing" ? color.new(color.white, 100) : na
+
+                  
+                  
+                  
+                  
+                  )
+
+
+sourceS = a == close ? "Close" : 
+             a == open ? "Open" : 
+                 a == high ? "High" : 
+                     a == low ? "Low" :
+                         a == hl2 ? "HL" : 
+                             a == hlc3 ? "HLC" : 
+                                 a == ohlc4 ? "OHLC" :
+                                     a == hlcc4 ? "HLCC" : 
+                                         a == ta.obv ? "OBV" 
+                                             : " Other"
+
+
+
+if MA == "Best Performing" and barstate.islast
+    table.cell(t2, 0, 0, text = MA == "Best Performing" and array.max(best) == array.get(best, 0) ? "Plotted: SMA " + str.tostring(b) + " (" + sourceS + ")" : 
+         MA == "Best Performing" and array.max(best) == array.get(best, 1) ? "Plotted: EMA " + str.tostring(b) + " (" + sourceS + ")" : 
+             MA == "Best Performing" and array.max(best) == array.get(best, 2) ? "Plotted: ALMA " + str.tostring(b) + " (" + sourceS + ")" : 
+                 MA == "Best Performing" and array.max(best) == array.get(best, 3) ? "Plotted: HMA" + str.tostring(b) + " (" + sourceS + ")" : 
+                     MA == "Best Performing" and array.max(best) == array.get(best, 4) ? "Plotted: WMA "  + str.tostring(b) + " (" + sourceS + ")" : 
+                         MA == "Best Performing" and array.max(best) == array.get(best, 5) ? "Plotted: VWMA " + str.tostring(b) + " (" + sourceS + ")" : 
+                             MA == "Best Performing" and array.max(best) == array.get(best, 6) ? "Plotted: LSMA "  + str.tostring(b) + " (" + sourceS + ")" :
+                                 na,
+                                     bgcolor = MA != "Best Performing" ? color.new(color.white, 100) : 
+                                         na, text_color = color.white
+                                 
+                                 
+                             
+                             )
+
+orgtext = ""
+besttext = ""
+table1 = table.new(position.bottom_right, 10, 10, bgcolor = color.new(color.white, 100))
+
+if barstate.islast and dataType == "Custom"
+    table.cell(table1, 0,0,text = "Price Crossover Performance" + "\n" + "\n" + str.tostring(sourceS) + "/" + str.tostring(b) + 
+         " (MA)", text_color = color.blue, text_size = size.normal)
+    for i = 0 to array.size(org) - 1
+        orgtext := orgtext + array.get(orgname_sorted, i) + ": " + str.tostring(array.get(org_sorted, i), format.percent) + 
+             " (" +str.tostring(array.get(org1_sorted, i), '#') + " Candles" + ")" + " (" + str.tostring(array.get(org2_sorted, i), "#") + " Crosses)" 
+             + "\n" +"\n"
+    table.cell(table1, 0,1,text = orgtext, text_color = color.white)
+    for i = 0 to array.size(best) - 1
+        besttext := "Highest Cumulative Gains: " + str.tostring(array.get(best_sorted, i), format.percent)+ " (" 
+             + array.get(bestname_sorted,i) + ")" + "\n" + "\n"
+    table.cell(table1, 0, 2, text = besttext, text_color = color.green)
+else if barstate.islast and dataType != "Custom"
+    table.cell(table1, 0,0,text = "Price Crossover Performance (Benchmark) \n \n" + str.tostring(sourceS) + "/" + str.tostring(d) +" (MA)", 
+         text_color = color.blue, text_size = size.normal)
+    for i = 0 to array.size(org) - 1
+        orgtext := orgtext + array.get(orgname_sorted, i) + ": " + str.tostring(array.get(org_sorted, i), format.percent)  + 
+             " (" +str.tostring(array.get(org1_sorted, i), '#') + " Candles" + ")" + " (" + str.tostring(array.get(org2_sorted, i), "#") + " Crosses)" + "\n" +"\n"
+    table.cell(table1, 0,1,text = orgtext, text_color = color.white)
+    for i = 0 to array.size(best) - 1
+        besttext := "Highest Cumulative Gains: " + str.tostring(array.get(best_sorted, i), format.percent)+ " (" 
+             + array.get(bestname_sorted,i) + ")" + "\n" + "\n"
+    table.cell(table1, 0, 2, text = besttext, text_color = color.green)
+
+if instructions == "On" and barstate.islast
+    table.cell(table1, 0,6, text = "The script calculates and compares asset performance after \nan MA/price crossover (source [i.e. close] crossover MA)" + "\n" + "\nThe best performing moving averages are listed in descending order!" + 
+         "\nWorks for any asset on any timeframe!" + "\n" + "\n" + "The integers inside parentheses indicate the AVERAGE\n number of candles that the source \n remains above the MA following\n following a crossover!" + "\n\n The gradient color MA is the best performing MA. \nWhen prices trade above the MA it will turn green \nWhen prices trade below the MA it will turn red!", text_color = color.green)
+
+plot(MA == "SMA" ? sma5 : MA == "EMA" ? ema5 : MA == "ALMA" ? alma5 : MA == "HMA" ? hma5 : MA == "WMA" ? wma5 : MA == "VWMA" ? vwma5 : MA == "LSMA" ? ls5 : na, color = 
+     MA == "SMA" ? color.green : MA == "EMA" ? color.orange : MA == "ALMA" ? color.yellow : MA == "HMA" ? color.blue : MA == "WMA" ? color.purple : MA == "VWMA" ? color.gray : MA == "LSMA" ? color.teal : na, 
+         linewidth = 2)
+     

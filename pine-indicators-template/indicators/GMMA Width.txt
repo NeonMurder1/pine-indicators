@@ -1,0 +1,49 @@
+//@version=3
+study("GMMA Width", overlay=false)
+
+//inputs
+_Period1 = input(3, "EMA1 Period")
+_Period2 = input(5, "EMA2 Period")
+_Period3 = input(8, "EMA3 Period")
+_Period4 = input(10, "EMA4 Period")
+_Period5 = input(12, "EMA5 Period")
+_Period6 = input(15, "EMA6 Period")
+_Period7 = input(30, "EMA7 Period")
+_Period8 = input(35, "EMA8 Period")
+_Period9 = input(40, "EMA9 Period")
+_Period10 = input(45, "EMA10 Period")
+_Period11 = input(50, "EMA11 Period")
+_Period12 = input(60, "EMA12 Period")
+
+//calculate ema
+ema1 = ema(close, _Period1)
+ema2 = ema(close, _Period2)
+ema3 = ema(close, _Period3)
+ema4 = ema(close, _Period4)
+ema5 = ema(close, _Period5)
+ema6 = ema(close, _Period6)
+ema7 = ema(close, _Period7)
+ema8 = ema(close, _Period8)
+ema9 = ema(close, _Period9)
+ema10 = ema(close, _Period10)
+ema11 = ema(close, _Period11)
+ema12 = ema(close, _Period12)
+
+col_grow_above = #26A69A
+col_grow_below = #FFCDD2
+col_fall_above = #B2DFDB
+col_fall_below = #EF5350
+
+shortTop = max(ema1, max(ema2, max(ema3, max(ema4, max(ema5, ema6)))))
+shortBottom = min(ema1, min(ema2, min(ema3, min(ema4, min(ema5, ema6)))))
+shortWidth = (shortTop - shortBottom) * (ema3 < ema4 ? -1 : 1)
+
+longTop = max(ema7, max(ema8, max(ema9, max(ema10, max(ema11, ema12)))))
+longBottom = min(ema7, min(ema8, min(ema9, min(ema10, min(ema11, ema12)))))
+longWidth = (longTop - longBottom) * (ema9 < ema10 ? -1 : 1)
+
+distance = shortBottom > longTop ? shortBottom - longTop : shortTop < longBottom ? shortTop - longBottom : 0
+
+plot(distance, color=(distance>=0 ? (distance[1] < distance ? col_grow_above : col_fall_above) : (distance[1] < distance ? col_grow_below : col_fall_below) ), title="distance", style=columns)
+plot(shortWidth, color=green, title="shortWidth")
+plot(longWidth, color=red, title="longWidth")
