@@ -1,0 +1,14 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © veryfid
+
+//@version=5
+
+indicator(title='SLSMA - Smooth LSMA', shorttitle='SLSMA', overlay=true, timeframe='')
+src = input(close, title='Source')
+length = input(title='Length', defval=21)
+offset = input(title='Offset', defval=0)
+
+lsma = ta.linreg(src, length, offset)
+slsma = lsma - (lsma - ta.linreg(lsma, length, offset))
+
+plot(slsma, color=color.new(color.yellow, 0), linewidth=2)

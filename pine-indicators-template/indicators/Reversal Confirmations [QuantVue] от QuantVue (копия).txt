@@ -1,0 +1,55 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © QuantVue
+
+//@version=5
+indicator('Reversal Confirmations [QuantVue]', overlay = true)
+
+//----------inputs----------//
+lookback        = input.int(50, 'Lookback Period', minval = 1, step = 1)
+downColor       = input(color.red, 'Shape Color Down')
+upColor         = input(color.green, 'Shape Color Up')
+showChannels    = input.bool(defval = true, title = 'Show Channel Lines')
+showMean        = input.bool(defval = true, title = 'Show Mean', inline = '1')
+emaColor        = input.color(color.orange, ' ', inline = '1')
+
+find_highest    = ta.highest(high, lookback)
+find_lowest     = ta.lowest(low, lookback)
+ema             = ta.ema(close, lookback)
+
+var dnRv         = 0.0
+var dnRv_trigger = false
+var upRv         = 0.0
+var upRv_trigger = false
+
+if high == find_highest
+    dnRv_trigger := false
+if low == find_lowest
+    upRv_trigger := false
+
+for i = 0 to lookback - 1
+    if high[i] == find_highest
+        dnRv := low[i]
+for i = 0 to lookback - 1
+    if low[i] == find_lowest
+        upRv := high[i]
+
+dnRv_signal = close < dnRv and dnRv_trigger == false 
+upRv_signal = close > upRv and upRv_trigger == false
+
+if dnRv_signal  
+    dnRv_trigger := true
+if upRv_signal  
+    upRv_trigger := true
+
+//plots
+plot(showChannels ? find_highest : na , 'Upper Channel', color = upColor)
+plot(showChannels ? find_lowest : na , 'Lower Channel', color = downColor)
+plot(showMean ? ema : na , 'Mean', color = emaColor)
+plotshape(dnRv_signal ? 1 : 0, style = shape.triangledown, location = location.abovebar, color = downColor, display = display.pane)
+plotshape(upRv_signal ? 1 : 0, style = shape.triangleup, location = location.belowbar, color = upColor, display = display.pane)
+
+//alerts
+if upRv_signal
+    alert('Upside Reversal', alert.freq_once_per_bar_close)
+else if dnRv_signal
+    alert('Downside Reversal', alert.freq_once_per_bar_close)

@@ -1,0 +1,191 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © eykpunter
+
+//@version=5
+indicator("Range Extension Volume Expansion Cohorts", shorttitle="REVE Cohorts", max_labels_count = 100)
+
+pertttext="Script uses timeframe to set lookback - month and week: 14, day: 21, 4hour and 3hour:28, 1hour and 45min: 35, 15min: 42, 5min and 3min: 49, 1min: 56"
+perwish=input.bool(true, "script sets lookback (overrides user)", tooltip=pertttext)
+perfeedback=input.bool(false, "show feedback label about lookback")
+evaltttext="e.g. when set to 10 the Range Candles will show confirms or falters toward direction of slope of 10 period Moving Average"
+eval=input.int(10,"Look back (when script setting is off)",1,tooltip=evaltttext, group="DIRECTION AND RANGE")
+
+//input colors for price direction
+ttup="uptrend marker line, range candle border in uptrend, candle body in confirm uptrend, transparent in falter downtrend candles"
+ttdn="downtrend marker line, range candle border in downtrend, candle body in confirm downtrend, transparent in falter uptrend candles"
+cup=input.color(color.blue, "price direction up", group="DIRECTION AND RANGE", tooltip = ttup)
+cdn=input.color(color.red, "price direction down", group="DIRECTION AND RANGE", tooltip = ttdn)
+
+volwish=input.bool(true, "show volume cohorts", group = "VOLUME")
+//input colors for cohorts in volume patches
+cv1=input.color(color.green,  "cohort 0 - 80 percent: low volume", group = "VOLUME")
+cv2=input.color(color.blue,   "cohort 80 - 120 percent: normal volume", group = "VOLUME")
+cv3=input.color(color.rgb(177, 84, 231),    "cohort 120 - 200 percent: high volume", group = "VOLUME")
+cv4=input.color(color.maroon, "cohort above 200 percent: extreme volume", group = "VOLUME")
+
+graywish=input.bool(false, "colors when signal, gray otherwise", group="SIGNALS")
+sigu=input.color(color.aqua, "signal pressure up", group="SIGNALS")
+sigd=input.color(color.fuchsia, "signal pressure down", group="SIGNALS")
+
+inv=color.new(color.yellow,100)//invisible color 
+
+//calculate periods by script if perwish == true
+setper= 14                           //initialize setper
+tf=timeframe.period
+setper:= tf=="M"? 14: tf=="W"? 14: tf=="D"? 21: tf=="240"? 28: tf=="180"? 28: tf=="120"? 35: tf=="60"? 35: tf=="45"? 35: tf=="30"? 42: tf=="15"? 42: tf=="5"? 49: tf=="3"? 49: tf=="1"? 56: 10
+eval:= perwish? setper : eval
+
+//Calculate price DIRECTION
+cl=math.avg(close,eval)
+pr=cl[eval]
+op=math.avg(open,eval)
+up=cl>pr and cl>op
+dn=cl<pr and cl<op
+fa= not up and not dn       //price falters
+fup= close >= open and fa   //up bar is a falter bar (true in down trend)
+fdn= open > close and fa    //down bar is a falter bar (true in up trend)
+ut=up or fdn                //up trend i.e. direction of sma[eval] goes up
+dt=dn or fup                //down trend i.e. direction of sma[eval] goes down
+
+//calculate VOLUME values
+novol=na(volume)                //check if volume is present in period
+yesvol=not novol                //volume is present
+curvol=yesvol? volume:0         //current volume, set to zero if no volume present
+
+//Setting lookback by using bar_index results in an integer value that works in ta.median from the first candle in the data onwards.
+m180=bar_index<4?1: bar_index<10?4 :bar_index<20?10 :bar_index<60?20 :bar_index<180?60: 180
+m60=bar_index<4?1: bar_index<10?4 :bar_index<20?10 :bar_index<60?20 :60
+m20=bar_index<4?1: bar_index<10?4 :bar_index<20?10 :20      //
+
+norvol= (ta.median(curvol[1],m180) + ta.median(curvol[1],m60) + ta.median(curvol[1],m20))/3   //normal volume, i.e. average of medians 20,60 and 180 used as 100 %
+pervol=yesvol? curvol/norvol*100: 0        //current volume as percent of normal volume
+//VOLUME cohorts
+modvol=pervol==0? 0: pervol<=80? 1: pervol<=120? 2: pervol<=200? 3: pervol>200? 4: 0  //assign Volume percents to cohorts
+//volume cohorts booleans
+v0=modvol==0     //no volume present
+v1=modvol==1     //low volume      0- 80 percent
+v2=modvol==2     //normal volume  80-120 percent
+v3=modvol==3     //high volume   120-200 percent
+v4=modvol==4     //extreme volume above 200 percent
+
+//calculate RANGE values
+noran=high==low and close==close[1] //check if a range is present
+yesran=not noran                    //range is present
+curran=yesran? ta.tr:0              //current true range, set to zero if no range present
+norran=ta.median(curran[1],m60)      //normal range, median 50, used as 100 %
+perran=yesran? curran/norran*100 :0 //current range as percent of normal range
+//RANGE cohorts
+modran=perran==0? 1: perran<=120? 1: perran>120? 2: 1  //assign range percents to cohorts
+//range cohorsts booleans
+r1=modran==1    //small range     0-120  percent
+r2=modran==2    //wide range  above 120  percent
+
+//levels for RANGE candles
+vshow = volwish and not v0 //condition to show volume, if no volume no space assigned
+zero=0
+u1=vshow?1: 0
+u2=vshow?2: 0
+u3=vshow?3: 1
+u4=vshow?4: 2
+u5=vshow?5: 3
+d1=vshow?-1: 0
+d2=vshow?-2: 0
+d3=vshow?-3: -1
+d4=vshow?-4: -2
+d5=vshow?-5: -3
+border=ut and vshow? u5: dt and vshow? d5: ut? u5: d5  
+plot(border, "trend marker", color=ut?cdn:cup, style = plot.style_stepline) //provides a marker for trend change
+
+//level plottings
+pz=plot(zero, "zero", inv)
+
+pu1=plot(u1, "up level 1", inv)
+pu2=plot(u2, "up level 2", inv)
+pu3=plot(u3, "up level 3", inv)
+pu4=plot(u4, "up level 4", inv)
+pub=plot(u5, "uptrend marker", color=ut[1] and not dt?cup:inv, linewidth=2)
+pd1=plot(d1, "down level 1", inv)
+pd2=plot(d2, "down level 2", inv)
+pd3=plot(d3, "down level 3", inv)
+pd4=plot(d4, "down level 4", inv)
+pdb=plot(d5, "downtrend marker", color=dt[1] and not ut? cdn: inv, linewidth =2)
+
+//logic for RANGE candles
+up1=up and r1
+up2=up and r2
+fdn1=fdn and r1
+fdn2=fdn and r2
+dn1=dn and r1
+dn2=dn and r2
+fup1=fup and r1
+fup2=fup and r2
+
+//logic for REVE markers+
+//uptrendside
+presup=v4 and up2? true: v3 and up2? true: false                                //pressure up while uptrend
+presdn4=v4 and fdn2? true: false                                                //pressure down while uptrend
+presfup=v4 and up1? true: v4 and fdn1? true: v3 and fdn2? true: false           //unresolved pressure while uptrend
+presut=presup or presup[1] or presdn4 or presdn4[1] or presfup or presfup[1]
+//downtrendside
+presdn=v4 and dn2? true: v3 and dn2? true: false                                //pressure down while downtrend
+presup4=v4 and fup2? true: false                                                //pressure up while downtrend
+presfdn=v4 and dn1? true: v4 and fup1? true: v3 and fup2? true: false           //unresolved pressure while downtrend
+presdt=presdn or presdn[1] or presup4 or presup4[1] or presfdn or presfdn[1]
+marker=presup or presdn4 or presfup or presut or presdn or presup4 or presfdn or presdt
+gcol=graywish and not marker
+
+//choos colors
+ccup=gcol? color.new(color.gray, 50):cup
+cfup=gcol? color.new(color.gray, 50):color.new(cup,40)
+ccdn=gcol? color.new(color.gray,50):cdn
+cfdn=gcol? color.new(color.gray,50):color.new(cdn,40)
+
+
+//setting and plotting RANGE candles
+hcbo=up1?u4: up2?u5:   fdn1?u4: fdn2?u4: dn1?d3: dn2?d3: fup1?d3: d2 //high candle border open value
+hcbh=up1?u4: up2?u5:   fdn1?u4: fdn2?u4: dn1?d3: dn2?d3: fup1?d3: d2 //high candle border high value
+lcbl=up1?u3: up2?u3:   fdn1?u3: fdn2?u2: dn1?d4: dn2?d5: fup1?d4: d4 //low candle border low value
+lcbc=up1?u3: up2?u3:   fdn1?u3: fdn2?u2: dn1?d4: dn2?d5: fup1?d4: d4 //low candle border close value
+plotcandle(hcbo,hcbh,lcbl,lcbc, color=up?ccup: dn?ccdn: fup?cfup: cfdn, wickcolor=vshow?color.black:inv, bordercolor=ut?ccup:ccdn) 
+
+//fillS for VOLUME patches 
+tran=v1?50: v2?50: v3?20: 20 //transparancy lower in high volume
+cv1f=gcol?color.new(color.gray, tran):color.new(cv1, tran)
+cv2f=gcol?color.new(color.gray, tran):color.new(cv2, tran)
+cv3f=gcol?color.new(color.gray, tran):color.new(cv3, tran)
+cv4f=gcol?color.new(color.gray, tran):color.new(cv4, tran)
+fill(pu1,pz,  title="volume cohort colors", color=dt? v1?cv1f: v2?cv2f: v3?cv3f: cv4f: na) //in down trend patches above histogram
+fill(pz ,pd1, title="volume cohort colors", color=ut? v1?cv1f: v2?cv2f: v3?cv3f: cv4f: na) //below histogram
+
+//VOLUME histogram all heights one, width varies, wide in high volume
+vh=vshow? ut? 1: -1: na
+plot(vh, "low volume histogram", color=v1?gcol?color.new(color.gray, tran):cv1:inv, linewidth=2, style=plot.style_histogram)
+plot(vh, "normal volume histogram", color=v2?gcol?color.new(color.gray, tran):cv2: inv, linewidth=2, style=plot.style_histogram)
+plot(vh, "high volume histogram", color=v3?gcol?color.new(color.gray, tran):cv3: inv, linewidth=6, style=plot.style_histogram)
+plot(vh, "extreme volume histogram", color=v4?gcol?color.new(color.gray, tran):cv4: inv, linewidth=6, style=plot.style_histogram)
+
+//SIGNAL labels
+var label lbupu = na
+var label lbdnu = na
+var label lbpru = na
+var label lbprd = na
+var label lbupd = na
+var label lbdnd = na
+lbupu:=presup?label.new(bar_index, d2, color=sigu, style=label.style_triangleup, size=size.auto):na
+lbupu:=presup?label.new(bar_index, d3, color=sigu, style=label.style_triangleup, size=size.auto):na
+lbdnu:=presdn4?label.new(bar_index, d3, color=sigu, style=label.style_square, size=size.auto):na
+lbdnu:=presdn4?label.new(bar_index, d4, color=sigd, style=label.style_triangledown, size=size.auto):na
+lbupd:=presup4?label.new(bar_index, u4,color=sigu, style=label.style_triangleup, size=size.auto):na
+lbupd:=presup4?label.new(bar_index, u3,color=sigd, style=label.style_square, size=size.auto):na
+lbdnd:=presdn?label.new(bar_index, u2,color=sigd, style=label.style_triangledown, size=size.auto):na
+lbdnd:=presdn?label.new(bar_index, u3,color=sigd, style=label.style_triangledown, size=size.auto):na
+lbprd:=presfdn?label.new(bar_index, u3,color=sigd, style=label.style_square, size=size.auto):na
+lbpru:=presfup?label.new(bar_index, d3,color=sigu, style=label.style_square, size=size.auto):na
+
+//feedback table
+var table userorscript = table.new(position=position.bottom_left, columns=1, rows=1)
+feedbacktext=perwish? "script lookback " +str.tostring(eval) : "user lookback " +str.tostring(eval)
+if perfeedback == true
+    table.cell(userorscript, row=0, column=0, text=feedbacktext, bgcolor=color.silver)
+else if perfeedback == false
+    table.clear(userorscript, 0, 0, 0, 0)

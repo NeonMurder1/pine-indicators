@@ -1,0 +1,402 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © NovaTheMachine
+
+//@version=6
+indicator('Smoothed Candle Averages- NovaTheMachine', shorttitle = 'SCA', overlay = true, max_labels_count = 500)
+
+// =================== Input Groups ===================
+var g_interval = 'Interval Settings'
+var g_wave = 'Wave Settings'
+var g_alerts = 'Alert Settings'
+var g_signals = 'Signal Settings'
+var g_table = 'Table Settings' // New group for table settings
+var s_wave = 'Solid Wave'
+var d_wave = 'Dynamic Wave'
+var gradient = 'Dynamic Gradient Range'
+invis = color.rgb(0, 0, 0, 100)
+transp = input.float(75, 'Fill Transparency', 0, 100, 5, '0-100% Transparent', group = gradient)
+
+// =================== Interval Inputs ===================
+wave1 = input.bool(true, '', 'Enable Wave 1', group = g_interval, inline = '1')
+wave2 = input.bool(true, '', 'Enable Wave 2', group = g_interval, inline = '2')
+
+lookback1 = input.int(50, 'Lookback Period 1', minval = 1, group = g_interval, inline = '1')
+lookback2 = input.int(50, 'Lookback Period 2', minval = 1, group = g_interval, inline = '2')
+
+ma_type1 = input.string('ALMA', 'Moving Average Type 1', options = ['SMA', 'EMA', 'ALMA', 'WMA', 'HMA'], group = g_interval)
+ma_type2 = input.string('SMA', 'Moving Average Type 2', options = ['SMA', 'EMA', 'ALMA', 'WMA', 'HMA'], group = g_interval)
+
+
+// =================== Wave Style Inputs ===================
+wavestyle1 = input.string('Solid', 'Wave Style 1', options = ['Lines', 'Solid', 'Dynamic'], group = g_wave)
+wavestyle2 = input.string('Dynamic', 'Wave Style 2', options = ['Lines', 'Solid', 'Dynamic'], group = g_wave)
+wavestylebias = input.string('Dynamic', 'Bias Shading', ['Solid', 'Dynamic'], group = 'Bias')
+
+// =================== Table Settings ===================
+show_table = input.bool(true, 'Show Status Table', group = g_table)
+table_position = input.string('Bottom Right', 'Table Position', options = ['Top Left', 'Top Center', 'Top Right', 'Middle Left', 'Middle Right', 'Bottom Left', 'Bottom Center', 'Bottom Right'], group = g_table)
+table_size = input.string('small', 'Table Size', options = ['tiny', 'small', 'normal', 'large', 'huge'], group = g_table)
+color_background = input.bool(false, 'Color Background Instead of Text', group = g_table)
+table_text_color = input.color(color.rgb(173, 173, 173), 'Table Text Color', group = g_table)
+table_header_bg = input.color(color.rgb(0, 0, 0), 'Header Background Color', group = g_table)
+table_cell_bg = color.new(table_header_bg, 50)
+
+// Convert string position to position.* enum
+get_position(pos_string) =>
+    switch pos_string
+        'Top Left' => position.top_left
+        'Top Center' => position.top_center
+        'Top Right' => position.top_right
+        'Middle Left' => position.middle_left
+        'Middle Right' => position.middle_right
+        'Bottom Left' => position.bottom_left
+        'Bottom Center' => position.bottom_center
+        'Bottom Right' => position.bottom_right
+
+
+// Color inputs
+color_solid1 = input.color(color.rgb(255, 255, 255), 'Solid Wave 1', group = s_wave)
+color_solid2 = input.color(color.rgb(190, 190, 190), 'Solid Wave 2', group = s_wave)
+BiasColorsolid = input.color(#c2b500, 'Bias Solid Color', group = 'Bias')
+
+color_bull1 = input.color(color.rgb(0, 255, 42), 'Dynamic Uptrend 1', group = d_wave)
+color_bull2 = input.color(#00c3ff, 'Dynamic Uptrend 2', group = d_wave)
+BiasColorBull = input.color(#00b496, 'Bias Uptrend Color', group = 'Bias')
+
+color_bear1 = input.color(color.rgb(165, 0, 0), 'Dynamic Downtrend 1', group = d_wave)
+color_bear2 = input.color(#ff0062, 'Dynamic Downtrend 2', group = d_wave)
+BiasColorBear = input.color(#c77100, 'Bias Downtrend Color', group = 'Bias')
+
+highcolor = color.new(color.green, transp)
+lowcolor = color.new(color.red, transp)
+opencolor = color.new(color.yellow, transp)
+closecolor = color.new(color.teal, transp)
+
+// =================== Label Settings ===================
+label_y_offset = input.float(0, 'Vertical Label Offset', step = 0.1, group = g_signals)
+label_size = input.string('large', 'Label Size', options = ['tiny', 'small', 'normal', 'large', 'huge'], group = g_signals)
+
+// =================== Alert Settings ===================
+alertsOn = input.bool(true, 'Enable Alerts', group = g_alerts)
+alertMessage = input.string('SCA: {{ticker}} on {{interval}} ', 'Alert Message', group = g_alerts)
+
+// =================== Signal Settings ===================
+alternatingSignals = input.bool(true, 'Enable Alternating Signals', group = g_signals)
+showlast = input.bool(true, 'Last Signal Only', group = g_signals)
+
+// =================== Functions ===================
+// Moving Average calculation function
+calcMA(source, length, ma_type) =>
+    switch ma_type
+        'SMA' => ta.sma(source, length)
+        'EMA' => ta.ema(source, length)
+        'ALMA' => ta.alma(source, length, 0.85, 6)
+        'WMA' => ta.wma(source, length)
+        'HMA' => ta.hma(source, length)
+        => ta.sma(source, length) // default fallback
+
+// Calculate wave averages for a given period and MA type
+calcWaveAverages(length, ma_type) =>
+    [calcMA(high, length, ma_type), calcMA(low, length, ma_type), calcMA(open, length, ma_type), calcMA(close, length, ma_type)] // avgHigh calcMA(low, length, ma_type),    // avgLow calcMA(open, length, ma_type),   // avgOpen calcMA(close, length, ma_type)   // avgClose ]
+
+// Calculate trend strength
+calcTrendStrength() =>
+    maCount = input.int(20, 'Fill Dissection', 2, 100, 1, 'Divisor of Selected Averages: 2-100', group = gradient)
+    maStart = input.int(10, 'Min Range', 5, 50, 5, 'Lowest Average to consider: 5-50', group = gradient)
+    maEnd = input.int(55, 'Max Range', 55, 200, 5, 'Highest Average to consider: 55-200', group = gradient)
+    maStep = (maEnd - maStart) / (maCount - 1)
+
+    sum = 0.0
+    for i = 0 to maCount - 1 by 1
+        maPeriod = math.round(maStart + i * maStep)
+        ma = ta.sma(close, maPeriod)
+        sum := sum + (ma > ma[1] ? 1 : ma < ma[1] ? -1 : 0)
+        sum
+
+    math.max(math.min(sum / maCount, 1), -1)
+
+// Get fill color based on wave style and trend strength
+getFillColor(wavestyle, solidColor, bullColor, bearColor, strength) =>
+    if wavestyle == 'Lines'
+        color.rgb(0, 0, 0, 100) // invisible
+    else if wavestyle == 'Solid'
+        solidColor
+    else
+        color.from_gradient(strength, -1, 1, bearColor, bullColor)
+
+// Structure to hold wave signal state
+type WaveState
+	string trend
+	int primarySignal
+	label bullLabel
+	label bearLabel
+	int plotSignal
+	int secondarySignal
+
+// Initialize wave states
+var wave1State = WaveState.new(trend = '', primarySignal = 0, bullLabel = na, bearLabel = na, plotSignal = 0, secondarySignal = 0)
+var wave2State = WaveState.new(trend = '', primarySignal = 0, bullLabel = na, bearLabel = na, plotSignal = 0, secondarySignal = 0)
+// Function to delete old labels for a wave
+deleteWaveLabels(waveState) =>
+    if not na(waveState.bullLabel)
+        label.delete(waveState.bullLabel)
+    if not na(waveState.bearLabel)
+        label.delete(waveState.bearLabel)
+
+// Function to process wave signals
+processWaveSignals(waveState, avgClose, avgOpen, avgHigh, avgLow, fillColorBull, fillColorBear, waveNum) =>
+    // Detect crossovers
+    crossover = ta.crossover(avgClose, avgOpen)
+    crossunder = ta.crossunder(avgClose, avgOpen)
+    closeover = close > avgHigh and not(close[1] > avgHigh[1])
+    closeunder = close < avgLow and not(close[1] < avgLow[1])
+
+    // Reset signals
+    waveState.plotSignal := 0
+    waveState.secondarySignal := 0
+
+    // Process primary signals
+    if closeover and waveState.trend != 'bullish'
+        waveState.plotSignal := 1
+        waveState.trend := 'bullish'
+        waveState.primarySignal := 1
+        if showlast
+            deleteWaveLabels(waveState)
+        waveState.bullLabel := label.new(bar_index, low - label_y_offset * (1 + waveNum), '⩓' + str.tostring(waveNum), color = na, style = label.style_label_up, textcolor = color.new(fillColorBull, 0), size = label_size, tooltip = 'SCA BULL Wave ' + str.tostring(waveNum))
+        waveState.bullLabel
+    else if closeunder and waveState.trend != 'bearish'
+        waveState.plotSignal := -1
+        waveState.trend := 'bearish'
+        waveState.primarySignal := -1
+        if showlast
+            deleteWaveLabels(waveState)
+        waveState.bearLabel := label.new(bar_index, high + label_y_offset * (1 + waveNum), '⩔' + str.tostring(waveNum), color = na, style = label.style_label_down, textcolor = color.new(fillColorBear, 0), size = label_size, tooltip = 'SCA BEAR Wave ' + str.tostring(waveNum))
+        waveState.bearLabel
+
+    // Process secondary signals
+    if not alternatingSignals and waveState.plotSignal == 0
+        if closeover and waveState.primarySignal == 1
+            waveState.secondarySignal := 1
+            if not showlast
+                label.new(bar_index, low - label_y_offset * (1 + waveNum), '⩓' + str.tostring(waveNum), color = na, style = label.style_label_up, textcolor = color.new(fillColorBull, 0), size = label_size, tooltip = 'SCA BULL Wave ' + str.tostring(waveNum))
+        else if closeunder and waveState.primarySignal == -1
+            waveState.secondarySignal := -1
+            if not showlast
+                label.new(bar_index, high + label_y_offset * (1 + waveNum), '⩔' + str.tostring(waveNum), color = na, style = label.style_label_down, textcolor = color.new(fillColorBear, 0), size = label_size, tooltip = 'SCA BEAR Wave ' + str.tostring(waveNum))
+
+    [waveState.plotSignal, waveState.secondarySignal]
+    // =================== Calculations ===================
+strength = calcTrendStrength()
+
+// Calculate averages for each wave
+[avgHigh1, avgLow1, avgOpen1, avgClose1] = calcWaveAverages(lookback1, ma_type1)
+[avgHigh2, avgLow2, avgOpen2, avgClose2] = calcWaveAverages(lookback2, ma_type2)
+
+// Get fill colors
+fillColor1 = getFillColor(wavestyle1, color_solid1, color_bull1, color_bear1, strength)
+fillColor2 = getFillColor(wavestyle2, color_solid2, color_bull2, color_bear2, strength)
+
+// =================== Plotting ===================
+displayEnable1 = wave1 ? color.new(fillColor1, transp) : na
+displayEnable2 = wave2 ? color.new(fillColor2, transp) : na
+
+// Wave 1
+a1 = plot(avgHigh1, color = wave1 and wavestyle1 == 'Lines' ? highcolor : displayEnable1, title = 'Wave 1 High', display = display.pane, editable = false)
+a2 = plot(avgLow1, color = wave1 and wavestyle1 == 'Lines' ? lowcolor : displayEnable1, title = 'Wave 1 Low', display = display.pane, editable = false)
+a3 = plot(avgOpen1, color = wave1 and wavestyle1 == 'Lines' ? opencolor : na, title = 'Wave 1 Open', display = display.pane, editable = false)
+a4 = plot(avgClose1, color = wave1 and wavestyle1 == 'Lines' ? closecolor : na, title = 'Wave 1 Close', display = display.pane, editable = false)
+fill(a1, a2, displayEnable1, 'Wave 1', false)
+
+// Wave 2 
+b1 = plot(avgHigh2, color = wave2 and wavestyle2 == 'Lines' ? highcolor : displayEnable2, title = 'Wave 2 High', display = display.pane, editable = false)
+b2 = plot(avgLow2, color = wave2 and wavestyle2 == 'Lines' ? lowcolor : displayEnable2, title = 'Wave 2 Low', display = display.pane, editable = false)
+b3 = plot(avgOpen2, color = wave2 and wavestyle2 == 'Lines' ? opencolor : na, title = 'Wave 2 Open', display = display.pane, editable = false)
+b4 = plot(avgClose2, color = wave2 and wavestyle2 == 'Lines' ? closecolor : na, title = 'Wave 2 Close', display = display.pane, editable = false)
+fill(b1, b2, displayEnable2, 'Wave 2', false)
+
+
+// Create labels for each wave
+[signal1, secondary1] = processWaveSignals(wave1State, avgClose1, avgOpen1, avgHigh1, avgLow1, color_bull1, color_bear1, 1)
+[signal2, secondary2] = processWaveSignals(wave2State, avgClose2, avgOpen2, avgHigh2, avgLow2, color_bull2, color_bear2, 2)
+
+
+// Utility function to validate timeframe selection
+validateTimeframe(tf) =>
+    current_tf = timeframe.in_seconds('')
+    timeframe.in_seconds(tf) < current_tf ? '' : tf
+
+// Input parameters
+var biasGroup = "Bias Settings"
+showBias = input.bool(true, 'Show Primary Bias', group=biasGroup)
+showSecondaryBias = input.bool(true, 'Show Secondary Bias', group=biasGroup)
+primaryTimeframe = validateTimeframe(input.timeframe('', 'Primary Timeframe', group=biasGroup))
+secondaryTimeframe = validateTimeframe(input.timeframe('5', 'Secondary Timeframe', group=biasGroup))
+period = input.int(150, 'Period', group=biasGroup)
+smoothing = input.int(30, 'Smoothing', group=biasGroup)
+
+   
+// Repaint prevention indices
+getIndices(tf) =>
+    bool isCurrentTimeframe = timeframe.in_seconds(tf) == timeframe.in_seconds('')
+    [
+         isCurrentTimeframe ? 0 : barstate.isrealtime ? 1 : 0,  // High timeframe index
+         isCurrentTimeframe ? 0 : barstate.isrealtime ? 0 : 1   // Current timeframe index
+     ]
+
+// Get security data without repainting
+getSecurityData(tf, source) =>
+    [htfIndex, ctfIndex] = getIndices(tf)
+    request.security(syminfo.tickerid, tf, source[htfIndex])[ctfIndex]
+
+// Calculate Heikin Ashi values
+calculateHA(tf) =>
+    // Basic price EMAs
+    emaOpen = ta.ema(open, period)
+    emaClose = ta.ema(close, period)
+    emaHigh = ta.ema(high, period)
+    emaLow = ta.ema(low, period)
+    
+    // Heikin Ashi calculations
+    haClose = getSecurityData(tf, (emaOpen + emaHigh + emaLow + emaClose) / 4)
+    xHaOpen = getSecurityData(tf, (emaOpen + emaClose) / 2)
+    haOpen = na(xHaOpen[1]) ? (emaOpen + emaClose) / 2 : (xHaOpen[1] + haClose[1]) / 2
+    haHigh = math.max(emaHigh, math.max(haOpen, haClose))
+    haLow = math.min(emaLow, math.min(haOpen, haClose))
+    
+    // Smoothed values
+    smoothOpen = getSecurityData(tf, ta.ema(haOpen, smoothing))
+    smoothClose = getSecurityData(tf, ta.ema(haClose, smoothing))
+    smoothHigh = getSecurityData(tf, ta.ema(haHigh, smoothing))
+    smoothLow = getSecurityData(tf, ta.ema(haLow, smoothing))
+    
+    [smoothOpen, smoothClose, smoothHigh, smoothLow]
+
+// Calculate both bias values
+[primaryOpen, primaryClose, primaryHigh, primaryLow] = calculateHA(primaryTimeframe)
+[secondaryOpen, secondaryClose, secondaryHigh, secondaryLow] = calculateHA(secondaryTimeframe)
+
+
+// Determine dynamic fill color using color.from_gradient
+dynamicbear = color.new(BiasColorBear, transp * 0.7)
+dynamicbull = color.new(BiasColorBull, transp * 0.7)
+solidbias = color.new(BiasColorsolid, transp * 0.7)
+dynamicFillColor = color.from_gradient(strength, -1, 1, dynamicbear, dynamicbull)
+
+// Determine fill color based on wave style
+biascolor = wavestylebias == 'Solid' ? solidbias : dynamicFillColor
+
+
+// Plot Bias with new wave style
+HA_High = plot(primaryHigh, 'Bias High', showBias? biascolor:na, display = display.pane, editable = false)
+HA_Low = plot(primaryLow, 'Bias Low', showBias? biascolor:na, display = display.pane, editable = false)
+fill(HA_Low, HA_High, showBias ? biascolor : na)
+
+// Plot Bias with new wave style
+HA2_High = plot(secondaryHigh, 'Bias High', showSecondaryBias? solidbias:na, display = display.pane, editable = false)
+HA2_Low = plot(secondaryLow, 'Bias Low', showSecondaryBias? solidbias:na, display = display.pane, editable = false)
+fill(HA2_Low, HA2_High, showSecondaryBias ? color.new(solidbias, 95) : na)
+
+
+// =================== Status Table Functions ===================
+getWaveStatus(price, waveHigh, waveLow, prevPrice) =>
+    string status = ''
+    color statusColor = na
+    string direction = ''
+
+    // Determine if price is rising or falling
+    bool isRising = price > prevPrice
+
+    // Check position relative to wave
+    if price > waveHigh
+        status := 'Above'
+        direction := isRising ? '↑ Rising' : '↓ Falling'
+        statusColor := isRising ? color.rgb(0, 145, 5) : color.rgb(133, 99, 61)
+        statusColor
+    else if price < waveLow
+        status := 'Below'
+        direction := isRising ? '↑ Rising' : '↓ Falling'
+        statusColor := isRising ? color.rgb(133, 99, 61) : color.rgb(133, 0, 0)
+        statusColor
+    else
+        status := 'Inside'
+        direction := isRising ? '---' : '---'
+        statusColor := color.yellow
+        statusColor
+
+    [status, direction, statusColor]
+
+// Create and update status table
+if barstate.islast and show_table
+    // Convert string size to actual size value
+    tableSize = switch table_size
+        'tiny' => size.tiny
+        'small' => size.small
+        'normal' => size.normal
+        'large' => size.large
+        'huge' => size.huge
+        => size.normal // default fallback
+    tablePosition = get_position(table_position)
+
+    var table statusTable = table.new(tablePosition, 3, 6, frame_color = table_header_bg, frame_width = 1, border_color = table_header_bg, border_width = 1) // Use converted position 3,  // columns  6,  // rows frame_color = table_header_bg, frame_width = 1, border_color = table_header_bg, border_width = 1 )
+
+
+    table.cell(statusTable, 0, 0, 'Wave', bgcolor = table_header_bg, text_color = table_text_color, text_size = tableSize)
+    table.cell(statusTable, 1, 0, 'Status', bgcolor = table_header_bg, text_color = table_text_color, text_size = tableSize)
+    table.cell(statusTable, 2, 0, 'Direction', bgcolor = table_header_bg, text_color = table_text_color, text_size = tableSize)
+
+    // Initialize row counter
+    var int row = 1
+
+    // Reset row counter
+    row := 1
+
+    // Add enabled waves to table with updated size
+    if wave1
+        [status1, dir1, color1] = getWaveStatus(close, avgHigh1, avgLow1, close[1])
+        table.cell(statusTable, 0, row, 'Wave 1', bgcolor = color_background ? table_cell_bg : color.rgb(0, 0, 0), text_color = table_text_color, text_size = tableSize)
+        table.cell(statusTable, 1, row, status1, bgcolor = color_background ? color1 : color.rgb(0, 0, 0), text_color = color_background ? color.rgb(0, 0, 0) : color1, text_size = tableSize)
+        table.cell(statusTable, 2, row, dir1, bgcolor = color_background ? color1 : color.rgb(0, 0, 0), text_color = color_background ? color.rgb(0, 0, 0) : color1, text_size = tableSize)
+        row := row + 1
+        row
+
+    if wave2
+        [status2, dir2, color2] = getWaveStatus(close, avgHigh2, avgLow2, close[1])
+        table.cell(statusTable, 0, row, 'Wave 2', bgcolor = color_background ? table_cell_bg : color.rgb(0, 0, 0), text_color = table_text_color, text_size = tableSize)
+        table.cell(statusTable, 1, row, status2, bgcolor = color_background ? color2 : color.rgb(0, 0, 0), text_color = color_background ? color.rgb(0, 0, 0) : color2, text_size = tableSize)
+        table.cell(statusTable, 2, row, dir2, bgcolor = color_background ? color2 : color.rgb(0, 0, 0), text_color = color_background ? color.rgb(0, 0, 0) : color2, text_size = tableSize)
+        row := row + 1
+        row
+
+
+    if showBias
+        [statusB, dirB, colorB] = getWaveStatus(close, primaryHigh, primaryLow, close[1])
+        table.cell(statusTable, 0, row, 'Bias', bgcolor = color_background ? table_cell_bg : color.rgb(0, 0, 0), text_color = table_text_color, text_size = tableSize)
+        table.cell(statusTable, 1, row, statusB, bgcolor = color_background ? colorB : color.rgb(0, 0, 0), text_color = color_background ? color.rgb(0, 0, 0) : colorB, text_size = tableSize)
+        table.cell(statusTable, 2, row, dirB, bgcolor = color_background ? colorB : color.rgb(0, 0, 0), text_color = color_background ? color.rgb(0, 0, 0) : colorB, text_size = tableSize)
+
+// =================== Bias Alert Processing ===================
+// Process Bias signals similar to wave signals
+var biasState = WaveState.new(trend = '', primarySignal = 0, bullLabel = na, bearLabel = na, plotSignal = 0, secondarySignal = 0)
+
+[biasSignal, biasSecondary] = processWaveSignals(biasState, primaryClose, primaryOpen, primaryHigh, primaryLow, BiasColorBull, BiasColorBear, 3)
+
+// =================== Bias Cross Alert Processing ===================
+// Track price crossing the bias average
+crossAboveBias = ta.crossover(close, primaryHigh)
+crossBelowBias = ta.crossunder(close, primaryLow)
+alertcondition(crossAboveBias or crossBelowBias, 'Bias Cross Alert', 'Price has Crossed Bias: {{ticker}} on {{interval}}')
+
+// =================== Combined Alerts ===================
+if alertsOn
+    // Check primary signals for waves and bias
+    if signal1 == 1 or signal2 == 1 or biasSignal == 1
+        alert(alertMessage + ' - Bullish', alert.freq_once_per_bar_close)
+    if signal1 == -1 or signal2 == -1 or biasSignal == -1
+        alert(alertMessage + ' - Bearish', alert.freq_once_per_bar_close)
+
+    // Check secondary signals if enabled
+    if not alternatingSignals
+        if secondary1 == 1 or secondary2 == 1 or biasSecondary == 1
+            alert(alertMessage + ' - Secondary Bullish', alert.freq_once_per_bar_close)
+        if secondary1 == -1 or secondary2 == -1 or biasSecondary == -1
+            alert(alertMessage + ' - Secondary Bearish', alert.freq_once_per_bar_close)

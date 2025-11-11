@@ -1,0 +1,490 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © fluxchart
+
+//@version=5
+indicator("Support and Resistance Polynomial Regressions | Flux Charts", shorttitle="Support & Resistance Polynomial Regressions | Flux Charts", max_polylines_count = 100, max_labels_count = 500,  overlay = true, max_bars_back = 5000)
+import fluxchart/regressions/4 as regs
+
+// ————— Constants
+
+const string grp1 = "Resistance Regression Settings"
+const string grp2 = "Support Regression Settings"
+const string grp3 = "General Settings"
+const string grp4 = "Display"
+const string grp5 = "Support Period"
+const string grp6 = "Resistance Period"
+
+const string tt1 = "Custom polynomial which will be fitted to the pivots. Ex: input of 0, 3 will be a" + 
+                     "polynomial of form ax^3 + c, Ex 2: input of 0, 3, 5 will be a polynomial of form ax^5 + bx^3 + c." + 
+                     "Where a, b and c are best fitted coefficients."
+const string tt2 = "Left Starting Point."
+
+const string tt3 = "Right End Point."
+const string tt4 = "This will change the plotted height of the regression line without changing the slope."
+const string tt5 = "Freeze forcast extension for non-rolling calculation regression lines. If rolling calculations are on the lines will stop reculating"
+const string tt6 = "Rolling calculation makes the user selected data period update on every new bar. If a new data point is within the data period or if the data period moves past an old data point the regression is recalculated."
+
+const string default_left  = "30 Apr 2024 00:00 +0300"
+const string default_right = "1 May 2024 00:00 +0300"
+
+const string err_range = "Move left input line left of the right input line."
+const string err_data  = "Not enough data inbetween left and right lines. \n Increase the distance between the two, or decrease the pivot size in the indicator settings."
+
+const int max_pivots = 1000
+const int tb_piv_size = 6
+
+// ————— Inputs
+resistance_line = input.bool(true, "Resistance Line",  confirm = true, inline="resistance", group = grp1)
+rolling_resistance_offset = input.bool(false, "Rolling Calculation", inline="resistance", tooltip = tt6, group = grp1)
+
+resistance_poly_reg = input.string("Linear Regression", "Regression Type", 
+                 options = ["Linear Regression", "Quadratic Regression", "Cubic Regression", "Custom Polynomial"], 
+                 inline="res", confirm = true, group = grp1)
+resistance_custom_poly = input.string("0, 3, 4", "Custom Values", inline="res", confirm = true, tooltip = tt1,  group = grp1)
+resistance_pivot_size_L = input.int(5, "Left Pivot Size", inline="left_res_size", confirm = true,  group = grp1)
+resistance_pivot_size_R = input.int(5, "Right Pivot Size", inline="left_res_size", confirm = true,  group = grp1)
+res_y_offset = input.float(0, "Price Offset", group = grp1)
+
+support_line = input.bool(true, "Support Line",   confirm = true, group = grp2, inline="support", tooltip = tt4)
+rolling_support_offset = input.bool(false, "Rolling Calculation", inline="support", tooltip = tt6, group = grp2)
+
+support_poly_reg = input.string("Linear Regression", "Regression Type", 
+                 options = ["Linear Regression", "Quadratic Regression", "Cubic Regression", "Custom Polynomial"], 
+                 confirm = true, inline="supp", group = grp2)
+support_custom_poly = input.string("0, 3, 4", "Custom Values", inline="supp",  confirm = true, tooltip = tt1, group = grp2)
+support_pivot_size_L = input.int(5, "Left Pivot Size", inline="left_sup_size", confirm = true,  group = grp2)
+support_pivot_size_R = input.int(5, "Right Pivot Size", inline="left_sup_size", confirm = true,  group = grp2)
+sup_y_offset = input.float(0, "Price Offset",  group = grp2, tooltip = tt4)
+
+
+extend_future = input.int(150, "Extend", step=5 , inline="forecast", group = grp3, display = display.none)
+freeze = input.bool(false, "Freeze Forecast", inline="forecast", tooltip = tt5, group = grp3)
+source = input.string("Close", "Break/Test Source", options = ["Pivots", "Close", "High/Low"])
+
+
+support_color = input.color(color.green, "Support Color",  inline = "col", group = grp4, display = display.none)
+resistance_color = input.color(color.red, "Resistance Color", inline = "col", group = grp4, display = display.none)
+connect = input.bool(true, "Dashed Connect Line", inline = "connect",  group = grp4, display = display.none)
+center_line = input.bool(false, "Center Line",  group = grp4, inline = "center l", display = display.none)
+center_line_color = input.color(color.rgb(255, 255, 255, 77), "Center Line Color", inline = "center l", group = grp4, display = display.none)
+
+show_pivots = input.bool(true, "Show Data", group = grp4, display = display.none)
+text_color = input.color(color.white, "Text Color", group = grp4, display = display.none)
+
+support_test = input.bool(true, "Support Retests", inline = "tests")
+resistance_test = input.bool(true, "Resistance Retests", inline = "tests", tooltip = "Show Test labels")
+support_break = input.bool(true, "Support Breaks", inline = "breaks")
+resistance_break = input.bool(true, "Resistance Breaks", inline = "breaks", tooltip = "Show Break labels")
+
+support_left_location = input.time(timestamp(default_left), "Left Point", confirm = true, tooltip = "Support Line " + tt2, group = grp6)
+support_right_location = input.time(timestamp(default_right), "Right Point",  confirm = true, tooltip = "Support Line " + tt3, group = grp6)
+
+resistance_left_location = input.time(timestamp(default_left), "Left Point", confirm = true, tooltip = "Resistance Line " + tt2, group = grp5)
+resistance_right_location = input.time(timestamp(default_right), "Right Point",  confirm = true, tooltip ="Resistance Line " + tt3, group = grp5)
+
+var sup_reg = regs.regression.new()
+var res_reg = regs.regression.new()
+
+string_to_int_arr(string str, string sep = ",") =>
+    strs = str.split(str, sep)
+
+    numbers = array.new<int>()
+    for i=0 to strs.size()-1
+        numbers.push(int(str.tonumber(str.trim(strs.get(i)))))
+    numbers
+
+var int res_max_degree = 2
+var int sup_max_degree = 2
+
+var support_reg_type = switch support_poly_reg
+    "Linear Regression" => sup_reg.type_linear
+    "Quadratic Regression" => 
+        sup_max_degree := 3
+        sup_reg.type_quadratic
+    "Cubic Regression" =>
+        sup_max_degree := 4
+        sup_reg.type_cubic
+    "Custom Polynomial" => 
+        sup_reg.degrees := string_to_int_arr(support_custom_poly)
+        sup_max_degree := int(array.max(sup_reg.degrees))
+        sup_reg.type_custom
+        
+var resistance_reg_type = switch resistance_poly_reg
+    "Linear Regression" => res_reg.type_linear
+    "Quadratic Regression" => 
+        res_max_degree := 3
+        res_reg.type_quadratic
+    "Cubic Regression" => 
+        res_max_degree := 4
+        res_reg.type_cubic
+    "Custom Polynomial" => 
+        res_reg.degrees := string_to_int_arr(resistance_custom_poly)
+        res_max_degree := int(array.max(res_reg.degrees))
+        res_reg.type_custom
+
+// ————— Calculations
+
+var bool support_update = false
+var bool resistance_update = false
+
+var pivot_high_y = array.new<float>()
+var pivot_high_X = array.new<float>()
+var pivot_high_xloc = array.new<float>()
+var pivot_high_label = array.new<label>()
+
+var pivot_low_y = array.new<float>()
+var pivot_low_X = array.new<float>()
+var pivot_low_xloc = array.new<float>()
+var pivot_low_label = array.new<label>()
+
+var int sup_start_offset = na
+var int sup_end_offset = na
+var int res_start_offset = na
+var int res_end_offset = na
+
+
+pivotsHI = ta.pivothigh(resistance_pivot_size_L, resistance_pivot_size_R)
+pivotsLo = ta.pivotlow(support_pivot_size_L, support_pivot_size_R)
+
+var table tbl = na
+int offset = last_bar_index-bar_index
+
+within_support_period = time >= support_left_location and time < support_right_location
+within_resistance_period = time >= resistance_left_location and time < resistance_right_location
+
+rolling_support = rolling_support_offset and time > support_right_location
+rolling_resistance =  rolling_resistance_offset and time > resistance_right_location
+
+// list handling utility {
+_remove_item(y, X, x_loc, pivot_labels) => 
+    y.shift()
+    X.shift()
+    x_loc.shift()
+    label.delete(pivot_labels.shift())
+//}
+
+
+// gather data within period {
+if within_support_period and not na(pivotsLo)
+    pivot_low_y.push(pivotsLo)
+    pivot_low_X.push(offset[support_pivot_size_R])
+    pivot_low_xloc.push(bar_index-support_pivot_size_R)
+    pivot_low_label.push(label.new(bar_index - support_pivot_size_R, na, yloc=yloc.belowbar, style= label.style_circle, size=size.auto, color = color.green))
+    if pivot_low_X.size() > max_pivots
+        _remove_item(pivot_low_y, pivot_low_X, pivot_low_xloc, pivot_low_label)
+
+        
+if within_resistance_period and not na(pivotsHI)     
+    pivot_high_y.push(pivotsHI)
+    pivot_high_X.push(offset[resistance_pivot_size_R])
+    pivot_high_xloc.push(bar_index-resistance_pivot_size_R)
+    pivot_high_label.push(label.new(bar_index - resistance_pivot_size_R, na, yloc=yloc.abovebar, style= label.style_circle, size=size.auto, color = color.red))
+    if pivot_high_X.size() > max_pivots
+        _remove_item(pivot_high_y, pivot_high_X, pivot_high_xloc, pivot_high_label)
+
+
+
+// gather bar index offsets from time inputs {
+if (within_support_period and not within_support_period[1])
+    sup_start_offset := offset
+else if (within_support_period[1] and not within_support_period)
+    sup_end_offset := offset
+if (within_resistance_period and not within_resistance_period[1])
+    res_start_offset := offset
+else if (within_resistance_period[1] and not within_resistance_period)
+    res_end_offset := offset
+// }
+
+// Rolling offset data updates {
+
+
+if rolling_support and barstate.islast and not na(pivotsLo[sup_end_offset])
+    for i = 0 to pivot_low_y.size()-1 by 1
+        pivot_low_X.set(i, bar_index - pivot_low_xloc.get(i))
+    pivot_low_y.push(pivotsLo[sup_end_offset])
+    pivot_low_X.push(pivot_low_X.last() - (bar_index - sup_end_offset - pivot_low_xloc.last())-support_pivot_size_R)
+    pivot_low_xloc.push(bar_index-sup_end_offset-support_pivot_size_R)
+    pivot_low_label.push(label.new(bar_index[sup_end_offset] - support_pivot_size_R, na, str.tostring(pivot_low_X.last() - (bar_index - sup_end_offset - pivot_low_xloc.last())), yloc=yloc.belowbar, style= label.style_circle, size=size.auto, color = color.green))
+    support_update := true
+if rolling_support and pivot_low_xloc.size() > 0 and barstate.islast 
+    if rolling_support and bar_index-pivot_low_xloc.get(0) > sup_start_offset
+        for i = 0 to pivot_low_y.size()-1 by 1
+            pivot_low_X.set(i, bar_index - pivot_low_xloc.get(i))
+        _remove_item(pivot_low_y, pivot_low_X, pivot_low_xloc, pivot_low_label)
+        support_update := true
+
+if rolling_resistance and barstate.islast and not na(pivotsHI[res_end_offset])
+    for i = 0 to pivot_high_y.size()-1 by 1
+        pivot_high_X.set(i, bar_index - pivot_high_xloc.get(i))
+    pivot_high_y.push(pivotsHI[res_end_offset])
+    pivot_high_X.push(pivot_high_X.last() - (bar_index - res_end_offset - pivot_high_xloc.last())-resistance_pivot_size_R)
+    pivot_high_xloc.push(bar_index-res_end_offset-resistance_pivot_size_R)
+    pivot_high_label.push(label.new(bar_index[res_end_offset] - resistance_pivot_size_R, na, str.tostring(pivot_high_X.last() - (bar_index - res_end_offset - pivot_high_xloc.last())), yloc=yloc.belowbar, style= label.style_circle, size=size.auto, color = color.green))
+    resistance_update := true
+if rolling_resistance and pivot_high_xloc.size() > 0 and barstate.islast 
+    if rolling_resistance and bar_index-pivot_high_xloc.get(0) > res_start_offset
+        for i = 0 to pivot_high_y.size()-1 by 1
+            pivot_high_X.set(i, bar_index - pivot_high_xloc.get(i))
+        _remove_item(pivot_high_y, pivot_high_X, pivot_high_xloc, pivot_high_label)
+        resistance_update := true
+// }
+
+
+
+// Verify Inputs {
+
+spacing = ta.atr(100)
+
+bool sup_range_error = support_left_location >= support_right_location
+bool sup_data_error  = pivot_low_X.size() < sup_max_degree
+bool res_range_error = resistance_left_location >= resistance_right_location
+bool res_data_error  = pivot_high_X.size() < res_max_degree
+
+bool sup_input_error = (sup_range_error or sup_data_error) and support_line
+bool res_input_error = (res_range_error or res_data_error) and resistance_line
+
+
+// }
+
+// Regress Data and define offsets at the end of the period {
+
+var regs.regression support_reg = na
+var regs.regression resistance_reg = na
+
+var int sup_start_index = last_bar_index
+var int sup_end_index = last_bar_index
+
+var int res_start_index = last_bar_index
+var int res_end_index = last_bar_index
+
+
+
+if within_support_period and not within_support_period[1] 
+    sup_start_index := bar_index
+else if (within_support_period[1] and not within_support_period or support_update) and not sup_input_error and support_line 
+    sup_end_index := bar_index
+    support_reg := regs.fit(pivot_low_X, pivot_low_y, support_reg_type, sup_reg.degrees)
+    y_inter = support_reg.coeffs.get(0)
+    support_reg.coeffs.set(0, y_inter+sup_y_offset)
+    
+if within_resistance_period and not within_resistance_period[1]
+    res_start_index := bar_index
+else if (within_resistance_period[1] and not within_resistance_period or resistance_update) and not res_input_error and resistance_line 
+    res_end_index := bar_index
+    resistance_reg := regs.fit(pivot_high_X, pivot_high_y, resistance_reg_type, res_reg.degrees)
+    y_inter = resistance_reg.coeffs.get(0)
+    resistance_reg.coeffs.set(0, y_inter+res_y_offset)
+
+
+
+if(not rolling_support_offset)
+    sup_start_offset := last_bar_index - sup_start_index
+    sup_end_offset :=  last_bar_index - sup_end_index
+if (not rolling_resistance_offset)
+    res_start_offset := last_bar_index - res_start_index
+    res_end_offset := last_bar_index - res_end_index
+
+if sup_start_offset >= 5000 
+    runtime.error("Support Line starts too far back in history move it to the right closer to the realtime bar.")
+if res_start_offset >= 5000
+    runtime.error("Resistance Line starts too far back in history move it to the right closer to the realtime bar.")
+
+// }
+
+// Forecast lines {
+
+var int freeze_point_res = na
+var int freeze_point_sup = na
+
+if na(freeze_point_res) or resistance_update 
+    freeze_point_res := last_bar_index
+if na(freeze_point_sup) or support_update 
+    freeze_point_sup := last_bar_index
+
+int start_offset_res = last_bar_index - freeze_point_res
+int start_offset_sup = last_bar_index - freeze_point_sup
+
+
+regs.regression plot_res_reg = not resistance_line ? na : resistance_reg
+regs.regression plot_sup_reg = not support_line ? na : support_reg
+
+var float[] predict_X_res =  regs.range_list(start_offset_res-1, -extend_future-1) // the offset to predict 
+var float[] predict_X_sup =  regs.range_list(start_offset_sup-1, -extend_future-1)
+
+_extend_future_res = freeze ? -extend_future + start_offset_res : -extend_future
+pred_loc_res = regs.range_list(start_offset_res, _extend_future_res)  // the cooresponding x locations of the predicted values
+_extend_future_sup = freeze ? -extend_future + start_offset_sup : -extend_future
+pred_loc_sup = regs.range_list(start_offset_sup, _extend_future_sup)
+
+
+var float[] res_forcast_y = na
+var float[] sup_forcast_y = na
+var float[] center_forcast = na
+
+if na(plot_res_reg[1]) and not na(plot_res_reg) or resistance_update
+    res_forcast_y := regs.predict(plot_res_reg, X = predict_X_res)
+if na(plot_sup_reg[1]) and not na(plot_sup_reg) or support_update
+    sup_forcast_y := regs.predict(plot_sup_reg, X = predict_X_sup)
+if not na(plot_sup_reg) and not na(plot_res_reg) and center_line
+    center_forcast := array.new<float>()
+    for i=0 to array.size(sup_forcast_y)-1
+        sum = res_forcast_y.get(i) + sup_forcast_y.get(i)
+        center_forcast.push(sum/2)
+
+new_x_res = predict_X_res.last() - 1
+new_x_sup = predict_X_sup.last() - 1
+
+
+if barstate.islast and barstate.isconfirmed and not freeze
+    predict_X_res.push(new_x_res) // when a new bar forms add a new x value for it
+    predict_X_sup.push(new_x_sup)
+    if not na(res_forcast_y)
+        res_forcast_y.push(regs.regress(plot_res_reg, new_x_res))
+    if not na(sup_forcast_y)
+        sup_forcast_y.push(regs.regress(plot_sup_reg, new_x_res))
+    if not na(plot_sup_reg) and not na(plot_res_reg) and center_line
+        sum = res_forcast_y.last() + sup_forcast_y.last()
+        center_forcast.push(sum/2)
+
+res_reg_point = na(res_forcast_y) ? na : freeze and res_forcast_y.size() <= start_offset_res ? na : res_forcast_y.get(start_offset_res)
+sup_reg_point = na(sup_forcast_y) ? na : freeze and sup_forcast_y.size() <= start_offset_sup ? na : sup_forcast_y.get(start_offset_sup)
+
+// }
+
+// Data Plot Condition {
+
+sup_data_plot = within_support_period and show_pivots and not na(pivotsLo) ? hl2[support_pivot_size_R] : na
+res_data_plot = within_resistance_period and show_pivots and not na(pivotsHI) ? hl2[resistance_pivot_size_R] : na
+
+// }
+
+// Test and Break Source {
+
+plot_offset = source == "Pivots" ? -tb_piv_size : 0
+
+var sup_piv_reset = false
+var res_piv_reset = false
+
+tb_high_piv = ta.pivothigh(tb_piv_size, tb_piv_size)
+tb_low_piv = ta.pivotlow(tb_piv_size, tb_piv_size)
+
+res_tb_src = source == "Close" ? close : source == "Pivots" ? tb_high_piv : high
+sup_tb_src = source == "Close" ? close : source == "Pivots" ? tb_low_piv : low
+
+// }
+
+
+// Detect Breaks {
+
+sup_piv_reset := close >= sup_reg_point ? true : sup_reg_point <= sup_tb_src ? false : sup_piv_reset
+res_piv_reset := close <= res_reg_point ? true : res_reg_point <= res_tb_src ? false : res_piv_reset
+
+res_close_break = res_reg_point <= close and res_reg_point[1] >= close[1] 
+sup_close_break = sup_reg_point >= close and sup_reg_point[1] <= close[1]
+
+res_full_piv = resistance_pivot_size_R+resistance_pivot_size_L
+sup_full_piv = support_pivot_size_R+support_pivot_size_L
+
+res_break = source == "Pivots" ? res_reg_point <= res_tb_src and res_reg_point[res_full_piv] >= close[res_full_piv]
+                               : res_close_break
+sup_break = source == "Pivots" ? sup_reg_point >= sup_tb_src and sup_reg_point[sup_full_piv] <= close[sup_full_piv]
+                               : sup_close_break
+
+varip bool trigger_res_test = na
+varip bool trigger_sup_test = na
+trigger_res_break = res_break and barstate.isconfirmed and barstate.islast
+trigger_sup_break = sup_break and barstate.isconfirmed and barstate.islast
+
+trigger_res_test := barstate.isnew or (res_close_break and barstate.isconfirmed) ? false : res_reg_point <= high and res_reg_point[1] >= high[1] and barstate.islast ? true : trigger_res_test
+trigger_sup_test := barstate.isnew or (sup_close_break and barstate.isconfirmed) ? false : sup_reg_point >= low and sup_reg_point[1] <= low[1] and barstate.islast ? true : trigger_sup_test
+
+// }
+
+// ————— Visuals
+
+var polyline resistance_reg_line = na
+var polyline connect_resistance = na
+var polyline support_reg_line = na 
+var polyline connect_support = na 
+
+resistance_forecast = regs.plot_reg(x=pred_loc_res, y=res_forcast_y, line_color = resistance_color)
+support_forecast = regs.plot_reg(x=pred_loc_sup, y=sup_forcast_y, line_color = support_color)
+center_forecast_line = regs.plot_reg(x=pred_loc_sup, y=center_forcast, line_color = center_line_color, line_style = line.style_dashed)
+
+polyline.delete(resistance_forecast[1])
+polyline.delete(support_forecast[1])
+polyline.delete(center_forecast_line[1])
+
+if barstate.islastconfirmedhistory and not na(resistance_reg) or (barstate.islast and na(resistance_reg[1]))
+    resistance_reg_line := regs.plot_reg(plot_res_reg, left_index = res_start_offset, right_index = res_end_offset+resistance_pivot_size_R, line_color = resistance_color)
+    connect_resistance := regs.plot_reg(plot_res_reg, left_index = res_end_offset+resistance_pivot_size_R, right_index = start_offset_res-1, line_style = connect ? line.style_dotted : line.style_solid, line_color = resistance_color)
+if resistance_update
+    resistance_reg_line := regs.plot_reg(plot_res_reg, left_index = int(pivot_high_X.first()), right_index = res_end_offset+resistance_pivot_size_R, line_color = resistance_color)
+    connect_resistance := regs.plot_reg(plot_res_reg, left_index = res_end_offset+resistance_pivot_size_R, right_index = start_offset_res-1, line_style = connect ? line.style_dotted : line.style_solid, line_color = resistance_color)
+
+    polyline.delete(resistance_reg_line[1])
+    polyline.delete(connect_resistance[1])
+    resistance_update := false
+
+if barstate.islastconfirmedhistory and not na(support_reg) or (barstate.islast and na(support_reg[1])) 
+    support_reg_line := regs.plot_reg(plot_sup_reg, left_index = sup_start_offset, right_index = sup_end_offset+support_pivot_size_R, line_color = support_color)
+    connect_support := regs.plot_reg(plot_sup_reg, left_index = sup_end_offset+support_pivot_size_R, right_index = start_offset_sup-1, line_style = connect ? line.style_dotted : line.style_solid, line_color = support_color)
+if support_update
+    support_reg_line := regs.plot_reg(plot_sup_reg, left_index = int(pivot_low_X.first()), right_index = sup_end_offset+support_pivot_size_R, line_color = support_color)
+    connect_support := regs.plot_reg(plot_sup_reg, left_index = sup_end_offset+support_pivot_size_R, right_index = start_offset_sup-1, line_style = connect ? line.style_dotted : line.style_solid, line_color = support_color)
+
+    polyline.delete(support_reg_line[1])
+    polyline.delete(connect_support[1])
+    support_update := false
+
+// Display Input Errors {
+
+table error_table = table.new(position.top_right, 1, 4, frame_color = color.orange)
+
+if sup_input_error
+    table.cell(error_table, 0, 0, text = "Support Issue!", text_color = support_color)
+    table.cell(error_table, 0, 1, text = sup_range_error ? err_range : err_data, text_color = color.orange)
+
+label sup_error_L = sup_input_error ? label.new(support_left_location, close - spacing*25, "◀️", color = support_color, textcolor = color.white, style = label.style_label_up, xloc = xloc.bar_time) : na
+label sup_error_R = sup_input_error ? label.new(support_right_location, close - spacing*25, "▶️", color = support_color, textcolor = color.white, style = label.style_label_up, xloc = xloc.bar_time) : na
+
+line sup_L_line = sup_input_error ? line.new(support_left_location, close + spacing*25, support_left_location, close - spacing*100, xloc.bar_time, color = support_color) : na
+line sup_R_line = sup_input_error ? line.new(support_right_location, close + spacing*25, support_right_location, close - spacing*100, xloc.bar_time, color = support_color) : na
+
+label.delete(sup_error_L[1])
+label.delete(sup_error_R[1])
+line.delete(sup_L_line[1])
+line.delete(sup_R_line[1])
+
+if res_input_error
+    table.cell(error_table, 0, 2, text = "Resistance Issue!", text_color = resistance_color)
+    table.cell(error_table, 0, 3, text = res_range_error ? err_range : err_data, text_color = color.orange)
+
+label res_error_L = res_input_error ? label.new(resistance_left_location, close + spacing*100, "◀️", color = resistance_color, textcolor = color.white,  xloc = xloc.bar_time) : na
+label res_error_R = res_input_error ? label.new(resistance_right_location, close + spacing*100, "▶️", color = resistance_color, textcolor = color.white, xloc = xloc.bar_time) : na
+
+line res_L_line = res_input_error ? line.new(resistance_left_location, close + spacing*100, resistance_left_location, close - spacing*100, xloc.bar_time, color = resistance_color) : na
+line res_R_line = res_input_error ? line.new(resistance_right_location, close + spacing*100, resistance_right_location, close - spacing*100, xloc.bar_time, color = resistance_color) : na
+
+label.delete(res_error_L[1])
+label.delete(res_error_R[1])
+line.delete(res_L_line[1])
+line.delete(res_R_line[1])
+
+// }
+
+// Tests and Breaks {
+
+plotshape(trigger_res_break and resistance_break and resistance_line ? res_tb_src : na, "Break", location = location.abovebar, style = shape.diamond, text = "B", offset = plot_offset, textcolor = text_color, size = size.tiny, color = color.blue)
+plotshape(trigger_res_test and resistance_test and resistance_line, "Retest", location = location.abovebar, style = shape.triangledown, text = "R",  textcolor = text_color, size = size.tiny,color = resistance_color)
+plotshape(trigger_sup_break and support_break and support_line ? sup_tb_src : na, "Break", location = location.belowbar, style = shape.diamond, text = "B", offset = plot_offset, textcolor = text_color, size = size.tiny, color = color.blue)
+plotshape(trigger_sup_test and support_test and support_line, "Retest", location = location.belowbar, style = shape.triangleup, text = "R", textcolor = text_color, size = size.tiny, color = support_color)
+
+// {
+
+// ————— Alerts
+
+alertcondition(trigger_res_break, "Resistance Break" , "Resistance Line Broken")
+alertcondition(trigger_res_test,  "Resistance Test"  , "Resistance Line Test")
+alertcondition(trigger_sup_break, "Support Break"    , "Support Line Broken")
+alertcondition(trigger_sup_test,  "Support Break"    , "Support Line Test")

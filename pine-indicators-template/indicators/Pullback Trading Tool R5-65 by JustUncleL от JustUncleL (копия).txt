@@ -1,0 +1,383 @@
+//@version=3
+//
+
+study(title = "Pullback Trading Tool R7 by JustUncleL", shorttitle = "PBTOOL R7", overlay = true)
+
+//
+//
+// Revision:        R7
+// Original Author: JustUncleL
+//
+// Description:
+//    This study project is a comprehensive Pullback trading Tool that incorporates the majority of the indicators
+//    needed to analyse trade Trends for Pullbacks and Reversals. 
+//    The set up utilies, optionally, Heikin Ashi candle charts.
+//
+//    NOTE: A Pullback is synomous to Retracement, generally a Pullback refers to a large Retracement of 100pips
+//    or more. In the context of this Tool and any comments related to it, a Pullback will be the 
+//    same as a Retracement.
+//
+//    Incorporated within this tool are the following indicators:
+//    1. Major industry (Banks) recognised important EMAs in an EMA Ribbon:
+//       - Lime  = EMA05       or EMA12 Ribbon (5-12)  Red/DodgerBlue/Maroon/Blue
+//       - DodgerBlue = EMA12  or EMA12 Ribbon (5-12)  Red/DodgerBlue/Maroon/Blue
+//       - Red   = EMA36       or EMA36 Ribbon (12-36) Red/DodgerBlue/Maroon/Blue
+//       - Green = EMA89
+//       - Blue  = EMA200 
+//       - Black = EMA633
+//    2. The EMA 5 (default) High/Low/Close Price Action Channel (PAC).
+//    3. Display Fractals and optional Fractal Levels
+//    4. HH, LH, LL, HL finder to help with drawing Trend lines and mini Trend Lines.
+//    5. Coloured coded Bar high lighting based on the PAC: 
+//    the Standard candle colours:
+//    - Blue    = candle closed above PAC.
+//    - Red     = candle closed below PAC.
+//    - Yellow  = Candle closed inside PAC.
+//    the Grab candles scheme:
+//    - Lime    = Bull candle open inside or above PAC and closed above  PAC.
+//    - Green   = Bear candle open inside or above PAC and closed above  PAC.
+//    - Red     = Bull candle open inside or below PAC and closed below  PAC.
+//    - DarkRed = Bear candle open inside or below PAC and closed below  PAC.
+//    - Aqua    = Bull candle closed across PAC.
+//    - Blue    = Bear candle stradle across PAC.
+//    6. Display Pivot points with optional Labels
+//    7. Display EMA 5-12 Ribbon
+//    8. Display EMA 12-36 Ribbon
+//
+//    Most of the above tools can be optionally disabled if not required.
+//
+// Setup and hints:
+//  I cannot go into a full description, as Pullback trading incorporates a full trading Methodology,
+//  there are many articles and books written on the subject.
+//
+//  - Set the chart to Heikin Ashi Candles (optional).
+//  - I also add a "Sweetspot Gold" indicator to the chart as well to help with support and resistance
+//    finding and shows where the important "00" lines are.
+//  - First on a weekly basis say Sunday night or Monday morning, analyse the Daily and Weekly charts
+//    to establish overall trends, and support/resistant levels. Draw significant trend lines,
+//    vertical trend lines (VTL) and S/R levels. Use Pivots option to guide VTL drawing and use Fractals
+//    to help guide TL drawing.
+//  - Once the trend direction and any potential major reversals highlighted, drop down to the 4hr chart
+//    and draw appropriate  mini Trend line matching the established momentum direction. Take note of
+//    potential pull backs from and of the EMAs, in particular the 36EMA and the 200EMA. Can use the
+//    Fractals and HH/LL points to guide your TL drawing.
+//  - Check to see if the TL is broken and is pulling back off one of the EMA lines, then trade
+//    that alert, or drop down to lower time frames (TF) and perform the same analysis there and trade at the lower
+//    TF. Trading at lower TF you will be able to get tighter Stop loss settings.
+//  - Other than the SweetSpot Gold R3 indicator, you should not need any other indicator to trade trends
+//    for pull backs and reversals.
+//
+// Revisions:
+//  R7 by JustUncleL
+//  - Added optional Candle Colouring to Grab candle colour scheme.
+//  - Upgraded to version3 Pinescript
+//  - Added seperate BUY and SELL alarm alerts
+//  - Added implied copyright notice.
+//
+//  R6 by JustUncleL
+//  - Experimental.
+//
+//  R5 by JustUncleL
+//  - Added 1st candle exit PAC BUY/SELL display and alert condition for TV alarm subsystem.
+//  - Added option to disable Pivot numbers.
+//  - Added option to disable any EMA and EMA-Ribbons as required
+//  - Remove Ideal Fractal option, redundant (they are the same as Pivots)
+//  - Remove experimental "Star" patterns.
+//  - Allow Fractals and Pivots to be displayed together
+//  - Replaced 5-12Channel with 5-12EMA Ribbon.
+//
+//  R4 by JustUncleL
+//  - Added Morning/Evening "Star" style pattern finder (but does not require centre Pin Bar).
+//  - Removed OCC experimental code.
+//
+//  R3 by JustUncleL
+//  - Corrected OCC MAs to use chart candles for open/close sources.
+//
+//  R2 by JustUncleL
+//  - Added option to display Fractal Levels.
+//  - Added option to display pivot points, with optional labels,
+//    Selecting Pivots will disable fractals drawing automatically.
+//  - Added option to select to display 12-36EMA ribbon in place of 36EMA
+//  - Added option to select to display 5-12EMA channel
+//  - Deleted  LSMA and ALMA moving average methods from the OCC selections, not required.
+//  - Corrected calculations that are ased on standard candle data, even if Heikin Ashi candles selected
+//    So all EMAs, fractals, Pivots will always be calculated from the standard candle
+//    open/close/high/low values not the HA averaged ones.
+//  - Correct calculation for Ideal Fractals.
+//
+//
+//  R1 by JustUncleL
+//  - Original version.
+//
+// References:
+//  - Scalp Jockey v2 by Jay Rogers
+//  - [RS]Fractals V8 by RicardoSantos
+//  - SweetSpot Gold R3 by JustUncleL
+//  - Price Action Trading System v0.3 by JustUncleL
+//  - http://www.swing-trade-stocks.com/pullbacks.html
+//
+//
+// -----------------------------------------------------------------------------
+// Copyright 2017,2018 JustUncleL
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// The GNU General Public License can be found here
+// <http://www.gnu.org/licenses/>.
+//
+// -----------------------------------------------------------------------------
+//
+
+// === INPUTS ===
+ShowEMA12_Ribbon = input(true)
+ShowEMA36_Ribbon = input(true)
+ShowEMA05_       = input(false)
+ShowEMA05        = ShowEMA12_Ribbon? false: ShowEMA05_
+ShowEMA12_       = input(false)
+ShowEMA12        = ShowEMA36_Ribbon or ShowEMA12_Ribbon? false: ShowEMA12_
+ShowEMA36_       = input(false)
+ShowEMA36        = ShowEMA36_Ribbon? false: ShowEMA36_
+ShowEMA89        = input(true)
+ShowEMA200       = input(true)
+ShowEMA633       = input(false)
+ShowPAC          = input(false, title="Show Price Action Channel (PAC)")
+ShowBarColor     = input(true, title="Show coloured Bars close relative on PAC")
+useGrabClr       = input(false, title="Use Grab Candle (6-tone) Colouring, instead of Standard (3-tone)")
+PACLen           = input(6,minval=2,title="High Low PAC Length")
+ShowPACexit      = input(true,title="Show PAC Buy/Sell Exit Alerts")
+filterEMA200     = input(true, title="Use 200EMA to filter PAC Exits")
+UseHAexit        = input(false, title="Use Heikin Ashi Candles for PAC Exits")
+UseBigArrows     = input(true, title="Use Big Arrows instead of BUY/SELL Exits")
+ShowPivots       = input(false)
+ShowPivotLabels  = input(false)
+ShowPivotNumbers = input(false)
+ShowFractals     = input(false)
+ShowFractalLevels= input(false)
+ShowHHLL_        = input(false)
+ShowHHLL         = ShowPivots?false:ShowHHLL_
+//
+//
+// --- CONSTANTS ---
+DodgerBlue  = #1E90FF
+// Colors with 0% Transparency
+GREEN   = #008000FF
+LIME    = #00FF00FF
+RED     = #FF0000FF
+BLUE    = #0000FFFF
+AQUA    = #00FFFFFF
+DARKRED = #8B0000FF
+GRAY    = #808080FF
+YELLOW  = #FFFF00FF
+GOLD    = #FFD700FF
+DODGERBLUE = #1E90FFFF
+
+//
+filterBW    = ShowPivots?true: false
+// --- /CONTANTS ---
+//
+// SOURCES - Get standard candle data values
+close_ = security(ticker, period, close)
+open_ = security(ticker, period, open)
+high_ = security(ticker, period, high)
+low_ = security(ticker, period, low)
+exitClose = UseHAexit ? security(heikinashi(tickerid), period, close) : close
+exitOpen  = UseHAexit ? security(heikinashi(tickerid), period, open)  : open
+//
+// === /INPUTS ===
+
+// === BASE FUNCTIONS ===
+
+// MA Colour finder for EMA Ribbon plot.
+maColor(maBase, ma, maRef) =>
+      change(ma)>=0 and maBase>maRef ? DodgerBlue
+     :change(ma)<0 and maBase>maRef ? maroon
+     :change(ma)<=0 and maBase<maRef ? red
+     :change(ma)>=0 and maBase<maRef ? blue
+     :gray
+
+//  ||---   Fractal and Star Recognition Functions:  ---------------------------------------------------------------||
+isIdealFractal(mode) =>
+    ret = mode == 1 ? high_[5] < high_[4] and high_[4]<= high_[3] and high_[3] > high_[2] and high_[2] > high_[1] : 
+          mode == -1 ? low_[5] > low_[4] and low_[4] >= low_[3] and low_[3] < low_[2] and low_[2] < low_[1] : false
+
+isRegularFractal(mode) =>
+    ret = mode == 1 ? high_[5] < high_[3] and high_[4] <= high_[3] and high_[3] > high_[2] and high_[3] > high_[1] : 
+          mode == -1 ? low_[5] > low_[3] and low_[4] >= low_[3] and low_[3] < low_[2] and low_[3] < low_[1] : false
+
+//  ||-----------------------------------------------------------------------------------------------------||
+
+// === /BASE FUNCTIONS ===
+
+// === SERIES SETUP ===
+//
+// Price action channel EMAs
+pacC        = ema(close_, PACLen)
+pacL        = ema(low_, PACLen)
+pacU        = ema(high_, PACLen)
+
+// All Other EMAs
+EMA05       = ema(close_, 5)
+EMA07       = ema(close_, 7)
+EMA09       = ema(close_, 9)
+EMA11       = ema(close_, 11)
+EMA12       = ema(close_, 12)
+EMA15       = ema(close_, 15)
+EMA18       = ema(close_, 18)
+EMA21       = ema(close_, 21)
+EMA24       = ema(close_, 24)
+EMA27       = ema(close_, 27)
+EMA30       = ema(close_, 30)
+EMA33       = ema(close_, 33)
+EMA36       = ema(close_, 36)
+EMA89       = ema(close_, 89)
+EMA200      = ema(close_, 200)
+EMA633      = ema(close_, 633)
+
+// === /SERIES ===
+
+// === PLOTTING ===
+// 
+// If selected, Plot the Price Action Channel (PAC) base on EMA high,low and close
+L=plot(ShowPAC ?pacL:na, color=gray, linewidth=1, title="High PAC EMA",transp=50)
+U=plot(ShowPAC ?pacU:na, color=gray, linewidth=1, title="Low PAC EMA",transp=50)
+C=plot(ShowPAC ?pacC:na, color=yellow, linewidth=1, title="Close PAC EMA",transp=0)
+fill(L,U, color=gray,transp=92,title="Fill HiLo PAC")
+
+// Colour bars according to the close position relative to the PAC selected.
+bColour = exitOpen>=pacL and exitClose>pacU? BLUE  : 
+          exitOpen<=pacU and exitClose<pacL? RED : 
+          GOLD
+bColour := not useGrabClr ? bColour : 
+          exitOpen>=pacL and exitClose>pacU? exitOpen>exitClose?GREEN:LIME : 
+          exitOpen<=pacU and exitClose<pacL? exitOpen>exitClose?DARKRED:RED : 
+          exitOpen>exitClose?BLUE:AQUA
+
+barcolor(ShowBarColor?bColour:na, title = "Bar Colours")
+
+// Draw the EMA ribbon
+plot(ShowEMA89?EMA89:na,  color=green,linewidth=3,transp=20,title="EMA89")
+plot(ShowEMA200?EMA200:na, color=blue,linewidth=3,transp=20,title="EMA200")
+plot(ShowEMA633?EMA633:na, color=black,linewidth=3,transp=20,title="EMA633")
+
+// Draw the EMA12 ribbon
+plot( ShowEMA05 or ShowEMA12_Ribbon?EMA05:na, color=ShowEMA12_Ribbon?maColor(EMA05,EMA05,EMA12):lime, style=line, title="EMA05", linewidth=2,transp=20)
+plot( ShowEMA12_Ribbon?EMA07:na, color=maColor(EMA05,EMA07,EMA12), style=line, title="EMA07", linewidth=1,transp=20)
+plot( ShowEMA12_Ribbon?EMA09:na, color=maColor(EMA05,EMA09,EMA12), style=line, title="EMA09", linewidth=1,transp=20)
+plot( ShowEMA12_Ribbon?EMA11:na, color=maColor(EMA05,EMA11,EMA12), style=line, title="EMA10", linewidth=1,transp=20)
+plot( not ShowEMA36_Ribbon and ShowEMA12_Ribbon?EMA12:na, color=maColor(EMA05,EMA12,EMA12), style=line, title="EMA10", linewidth=1,transp=20)
+
+// Draw the EMA 12-36 EMA Ribbon
+plot( ShowEMA36_Ribbon or ShowEMA12?EMA12:na, color=ShowEMA36_Ribbon?maColor(EMA12,EMA12,EMA36):DodgerBlue, style=line, title="MA12", linewidth=2,transp=20)
+plot( ShowEMA36_Ribbon?EMA15:na, color=maColor(EMA12,EMA15,EMA36), style=line, title="EMA15", linewidth=1,transp=20)
+plot( ShowEMA36_Ribbon?EMA18:na, color=maColor(EMA12,EMA18,EMA36), style=line, title="EMA18", linewidth=1,transp=20)
+plot( ShowEMA36_Ribbon?EMA21:na, color=maColor(EMA12,EMA21,EMA36), style=line, title="EMA21", linewidth=1,transp=20)
+plot( ShowEMA36_Ribbon?EMA24:na, color=maColor(EMA12,EMA24,EMA36), style=line, title="EMA24", linewidth=1,transp=20)
+plot( ShowEMA36_Ribbon?EMA27:na, color=maColor(EMA12,EMA27,EMA36), style=line, title="EMA27", linewidth=1,transp=20)
+plot( ShowEMA36_Ribbon?EMA30:na, color=maColor(EMA12,EMA30,EMA36), style=line, title="EMA30", linewidth=1,transp=20)
+plot( ShowEMA36_Ribbon?EMA33:na, color=maColor(EMA12,EMA33,EMA36), style=line, title="EMA33", linewidth=1,transp=20)
+plot( ShowEMA36_Ribbon or ShowEMA36?EMA36:na, color=ShowEMA36_Ribbon?maColor(EMA12,EMA36,EMA36):red, style=line, title="EMA36", linewidth=2,transp=20)
+
+
+//  ||---   Filtered and Unfiltered Fractal Recognition:
+//  ||-----------------------------------------------------------------------------------------------------||
+
+filteredtopf = filterBW ? isIdealFractal(1) : isRegularFractal(1)
+filteredbotf = filterBW ? isIdealFractal(-1) : isRegularFractal(-1)
+
+topf = isRegularFractal(1)
+botf = isRegularFractal(-1)
+
+topfractals = high
+botfractals = low
+topfractals := filteredtopf ? high_[3] : topfractals[1]
+botfractals := filteredbotf ? low_[3] : botfractals[1]
+
+topfcolor = topfractals != topfractals[1] ? na : green
+botfcolor = botfractals != botfractals[1] ? na : red
+
+
+//  ||-----------------------------------------------------------------------------------------------------||
+//  ||---   Higher Highs, Lower Highs, Higher Lows, Lower Lows  -------------------------------------------||
+higherhigh = filteredtopf == false ? false : ( valuewhen(filteredtopf == true, high_[3], 1) < valuewhen(filteredtopf == true, high_[3], 0) and 
+                                               (ShowPivots or valuewhen(filteredtopf == true, high_[3], 2) < valuewhen(filteredtopf == true, high_[3], 0)))
+lowerhigh = filteredtopf == false ? false : ( valuewhen(filteredtopf == true, high_[3], 1) > valuewhen(filteredtopf == true, high_[3], 0)  and 
+                                              (ShowPivots or valuewhen(filteredtopf == true, high_[3], 2) > valuewhen(filteredtopf == true, high_[3], 0)))
+higherlow = filteredbotf == false ? false : ( valuewhen(filteredbotf == true, low_[3], 1) < valuewhen(filteredbotf == true, low_[3], 0) and 
+                                              (ShowPivots or valuewhen(filteredbotf == true, low_[3], 2) < valuewhen(filteredbotf == true, low_[3], 0)))
+lowerlow = filteredbotf == false ? false : ( valuewhen(filteredbotf == true, low_[3], 1) > valuewhen(filteredbotf == true, low_[3], 0) and 
+                                              (ShowPivots or valuewhen(filteredbotf == true, low_[3], 2) > valuewhen(filteredbotf == true, low_[3], 0)))
+
+// If selected Display the HH/LL above/below candle.
+plotshape(ShowHHLL ? higherhigh : na, title='HH', style=shape.square, location=location.abovebar, color=maroon, text="[HH]", offset=-3,transp=0)
+plotshape(ShowHHLL ? lowerhigh : na, title='LH', style=shape.square, location=location.abovebar, color=maroon, text="[LH]", offset=-3,transp=0)
+plotshape(ShowHHLL ? higherlow : na, title='HL', style=shape.square, location=location.belowbar, color=green, text="[HL]", offset=-3,transp=0)
+plotshape(ShowHHLL ? lowerlow : na, title='LL', style=shape.square, location=location.belowbar, color=green, text="[LL]", offset=-3,transp=0)
+
+// If Selected Display Pivot points
+plotshape(ShowPivots and ShowPivotLabels? higherhigh : na, title='Higher High', style=shape.cross, location=location.abovebar, color=green, text="HH", offset=-3,transp=0)
+plotshape(ShowPivots and not ShowPivotLabels? higherhigh? high :na : na, title='Higher High+', style=shape.cross, location=location.abovebar, color=green, offset=-3,transp=0)
+
+plotshape(ShowPivots  and ShowPivotLabels? lowerhigh : na, title='Lower High', style=shape.cross, location=location.abovebar, color=green, text="LH", offset=-3,transp=0)
+plotshape(ShowPivots  and not ShowPivotLabels? lowerhigh? high : na : na, title='Lower High+', style=shape.cross, location=location.abovebar, color=green, offset=-3,transp=0)
+//
+plotshape(ShowPivots  and ShowPivotLabels? higherlow : na, title='Higher Low', style=shape.cross, location=location.belowbar, color=maroon, text="HL", offset=-3,transp=0)
+plotshape(ShowPivots  and not ShowPivotLabels? higherlow? low: na : na, title='Higher Low+', style=shape.cross, location=location.belowbar, color=maroon, offset=-3,transp=0)
+//
+plotshape(ShowPivots  and ShowPivotLabels? lowerlow : na, title='Lower Low', style=shape.cross, location=location.belowbar, color=maroon, text="LL", offset=-3,transp=0)
+plotshape(ShowPivots  and not ShowPivotLabels? lowerlow? low : na : na, title='Lower Low+', style=shape.cross, location=location.belowbar, color=maroon, offset=-3,transp=0)
+//
+// Number the Pivot candle fractal positions above or below candles
+plotchar(ShowPivots and ShowPivotNumbers? filteredtopf: na, title='High 1u', location=location.abovebar, color=green, char="1", offset=-5,transp=10)
+plotchar(ShowPivots and ShowPivotNumbers? filteredtopf: na, title='High 2u', location=location.abovebar, color=green, char="2", offset=-4,transp=10)
+plotchar(ShowPivots and ShowPivotNumbers ? filteredtopf: na, title='High 2d', location=location.abovebar, color=green, char="2", offset=-2,transp=10)
+plotchar(ShowPivots and ShowPivotNumbers ? filteredtopf: na, title='High 1d', location=location.abovebar, color=green, char="1", offset=-1,transp=10)
+//
+plotchar(ShowPivots and ShowPivotNumbers ? filteredbotf: na, title='Low 1d', location=location.belowbar, color=maroon, char="1", offset=-5,transp=10)
+plotchar(ShowPivots and ShowPivotNumbers ? filteredbotf: na, title='Low 2d', location=location.belowbar, color=maroon, char="2", offset=-4,transp=10)
+plotchar(ShowPivots and ShowPivotNumbers ? filteredbotf: na, title='Low 2u', location=location.belowbar, color=maroon, char="2", offset=-2,transp=10)
+plotchar(ShowPivots and ShowPivotNumbers ? filteredbotf: na, title='Low 1u', location=location.belowbar, color=maroon, char="1", offset=-1,transp=10)
+
+havespot = not ShowPivots or (ShowPivots and not(higherhigh or lowerhigh or higherlow or lowerlow))
+plotshape(havespot and ShowFractals? topf :na, title='Regular Top Fractals', style=shape.triangleup, location=location.abovebar, color=lime, offset=-3,transp=10)
+plotshape(havespot and ShowFractals? botf :na, title='Regular Bottom Fractals', style=shape.triangledown, location=location.belowbar, color=red, offset=-3,transp=10)
+
+plot(ShowFractalLevels? topfractals : na, color=topfcolor, transp=0, linewidth=2)
+plot(ShowFractalLevels? botfractals : na, color=botfcolor, transp=0, linewidth=2)
+
+// === /PLOTTING ===
+//
+
+// === ALERTS ===
+
+
+// Check for 1st Bar exit the PAC, use Heikin Ashi Bars
+isup =    crossover(exitClose,pacU)
+isdown =  crossunder(exitClose,pacL)
+
+// Check have alert
+up_alert = 0
+dn_alert = 0
+up_alert := isdown? 0 : isup and (not filterEMA200 or (pacC>EMA200)) ? na(up_alert[1]) ? 1 : up_alert[1]+1 : 0
+dn_alert := isup? 0 : isdown and (not filterEMA200 or (pacC<EMA200)) ? na(dn_alert[1]) ? 1 : dn_alert[1]+1 : 0
+//
+plotarrow(ShowPACexit and UseBigArrows? up_alert[1]==1? 1 : dn_alert[1]==1? -1 : na : na, colorup=aqua, colordown=fuchsia, transp=20,minheight=10,maxheight=20, title="PBTOOL Alert Arrows")
+plotshape(ShowPACexit and not UseBigArrows? up_alert[1]==1? true : na : na, title='PBTOOL Buy Arrow', location=location.belowbar, color=green,   style=shape.arrowup, text="BUY", textcolor=green,transp=0)
+plotshape(ShowPACexit and not UseBigArrows? dn_alert[1]==1? true : na : na, title='PBTOOL Sell Arrow', location=location.abovebar, color=red, style=shape.arrowdown, text="SELL",textcolor=red,transp=0)
+
+// generate an alert if required.
+both = (up_alert==1 and dn_alert==0) or (dn_alert==1 and up_alert==0)
+alertcondition(both, title="PBTOOL Alert ", message="BOTH")
+alertcondition(up_alert==1 and dn_alert==0, title="PBTOOL BUY", message="BUY")
+alertcondition(dn_alert==1 and up_alert==0, title="PBTOOL SELL", message="SELL")
+
+// === /ALERTS ===
+
+// === eof

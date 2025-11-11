@@ -1,0 +1,26 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=5
+indicator("Pullback Candle (Bullish & Bearish, No EMA)", overlay=true)
+
+// === Swing High/Low Filters ===
+swingHigh = high == ta.highest(high, 10) or high[1] == ta.highest(high, 10)
+swingLow  = low == ta.lowest(low, 6) or low[1] == ta.lowest(low, 6)
+
+// === Bullish Pullback Logic ===
+// Pattern: two down closes, then an up close, near a swing low
+bullishPullback = (close[3] > close[2]) and (close[2] > close[1]) and (close > close[1]) and swingLow
+
+// === Bearish Pullback Logic ===
+// Pattern: two up closes, then a down close, near a swing high
+bearishPullback = (close[3] < close[2]) and (close[2] < close[1]) and (close < close[1]) and swingHigh
+
+// === Plot Bullish Pullbacks ===
+plotshape(bullishPullback, style=shape.xcross, size=size.tiny, color=color.green, text="PB", location=location.belowbar)
+barcolor(bullishPullback ? color.green : na)
+alertcondition(bullishPullback, title="Bullish Pullback", message="Bullish Pullback detected on {{ticker}}")
+
+// === Plot Bearish Pullbacks ===
+plotshape(bearishPullback, style=shape.xcross, size=size.tiny, color=color.red, text="PB", location=location.abovebar)
+barcolor(bearishPullback ? color.red : na)
+alertcondition(bearishPullback, title="Bearish Pullback", message="Bearish Pullback detected on {{ticker}}")

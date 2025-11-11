@@ -1,0 +1,90 @@
+//@version=5
+strategy('Swing Hull/rsi/EMA Strategy', overlay=true,currency = currency.USD, default_qty_value=4000, default_qty_type = strategy.cash,initial_capital = 1000)
+
+
+//A Swing trading strategy that use a combination of indicators, rsi for target, hull for overall direction enad ema for entering the martket.
+// hull ma copied from syrowof HullMA who copied from mohamed982 :) thanks both
+// Performance 
+
+n = input(title='period', defval=100)
+
+n2ma = 2 * ta.wma(close, math.round(n / 2))
+nma = ta.wma(close, n)
+diff = n2ma - nma
+sqn = math.round(math.sqrt(n))
+
+n2ma1 = 2 * ta.wma(close[1], math.round(n / 2))
+nma1 = ta.wma(close[1], n)
+diff1 = n2ma1 - nma1
+sqn1 = math.round(math.sqrt(n))
+
+n1 = ta.wma(diff, sqn)
+n2 = ta.wma(diff1, sqn)
+c = n1 > n2 ? color.green : color.red
+ma = plot(n1, color=c)
+
+
+
+// RSi and Moving averages
+
+length = input(14)
+overSold = input(80)
+overBought = input(20)
+point = 0.0001
+dev = 2
+
+fastLength = input(50)
+fastLengthL = input(50)
+slowLength = input(100)
+slowLengthL = input(100)
+price = close
+
+mafast = ta.ema(price, fastLength)
+mafastL = ta.ema(price, fastLengthL)
+maslow = ta.ema(price, slowLength)
+maslowL = ta.ema(price, slowLengthL)
+vrsi = ta.rsi(price, length)
+cShort = ta.crossunder(vrsi, overBought)
+
+condDown = n2 >= n1
+condUp = condDown != true
+closeLong = ta.crossover(vrsi, overSold)
+closeShort = cShort
+
+
+// Strategy Logic
+longCondition = n1 > n2
+shortCondition = longCondition != true
+
+col = condUp ? color.lime : condDown ? color.red : color.yellow
+plot(n1, color=col, linewidth=3)
+
+
+if not na(vrsi)
+    if shortCondition
+        if price[0] < maslow[0] and price[1] > mafast[1]  //cross entry
+            strategy.entry('SYS-SHORT', strategy.short, comment='short')
+strategy.close('SYS-SHORT', when=closeShort)  //output logic
+
+if not na(vrsi)
+    if longCondition  // swing condition          
+        if price[0] < mafast[0] and price[1] > mafast[1]  //cross entry
+            strategy.entry('SYS-LONG', strategy.long, comment='long')
+strategy.close('SYS-LONG', when=closeLong)  //output logic
+
+
+// Stop Loss 
+
+
+sl = input(75)
+Stop = sl * 10
+
+
+
+strategy.exit('Out Long', 'SYS-LONG', loss=Stop)
+strategy.exit('Out Short', 'SYS-SHORT', loss=Stop)
+
+
+
+//plot(strategy.equity, title="equity", color=red, linewidth=2, style=areabr)
+

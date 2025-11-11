@@ -1,0 +1,130 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © BackQuant
+//@version=5
+indicator(
+ "PDF-MA Supertrend [BackQuant]",
+ "PDFMA ST [BackQuant]",
+ overlay=true,
+ timeframe="",
+ timeframe_gaps=true
+ )
+
+const string inputs = "Calculation Settings"
+series float src = input.source(close, "Price Source", group=inputs)
+string smoothingMethod = input.string("EMA", "Smoothing Method", options=["EMA", "SMA"], group=inputs)
+simple int period = input.int(20, "Smoothing Period", minval=1, group=inputs)
+simple float variance = input.float(1.5, "PDF Variance", step=0.1, minval=0.1, group=inputs)
+simple float mean = input.float(0.0, "PDF Mean", step=0.1, minval=-1.0, maxval=1.0, group=inputs)
+simple int atrPeriod = input.int(12, "ATR Period", group = "Supertrend", inline = "ST")
+simple float factor = input.float(1.7, "Factor", group = "Supertrend", inline = "ST", step = 0.01)
+
+simple bool showST = input.bool(true, "Show Supertrend on chart?", group = "UI Settings")
+simple bool paintCandles = input.bool(true, "Paint candles according to Trend?", group = "UI Settings")
+simple bool showlongshort = input.bool(true, "Show Long and Short Signals {𝕃 + 𝕊}", group =  "UI Settings")
+
+color longColor  = input.color(#33ff00, "Long Color", group = "UI Settings", inline = "Col")
+color shortColor = input.color(#ff0000, "Short Color", group = "UI Settings", inline = "Col")
+
+// PDF Function
+pdf(x, variance, mean) =>
+    1 / (variance * math.sqrt(2 * math.pi)) * math.exp(-math.pow(x - mean, 2) / (2 * math.pow(variance, 2)))
+
+pdf_ma(src, period, variance, mean, method) =>
+    step = math.pi / (period - 1)
+    coeffs = array.new_float()
+    for k = 0 to period - 1
+        x = k * step
+        weight = pdf(x, variance, mean * math.pi)
+        array.push(coeffs, weight)
+    sum_weights = array.sum(coeffs)
+    weighted_sum = 0.0
+    for i = 0 to period - 1
+        weight = array.get(coeffs, i)
+        src_value = nz(src[i])
+        weighted_sum += weight * src_value
+    weighted_avg = weighted_sum / sum_weights
+
+    ma = method == "EMA" ? ta.ema(src, period) : ta.sma(src, period)
+    out = (weighted_avg + ma) / 2
+    out
+
+pdf_ma_out = pdf_ma(src, period, variance, mean, smoothingMethod)
+
+supertrend(factor, atrPeriod, src) =>
+    atr = ta.atr(atrPeriod)
+    upperBand = src + factor * atr
+    lowerBand = src - factor * atr
+    prevLowerBand = nz(lowerBand[1])
+    prevUpperBand = nz(upperBand[1])
+
+    lowerBand := lowerBand > prevLowerBand or close[1] < prevLowerBand ? lowerBand : prevLowerBand
+    upperBand := upperBand < prevUpperBand or close[1] > prevUpperBand ? upperBand : prevUpperBand
+    int direction = na
+    float superTrend = na
+    prevSuperTrend = superTrend[1]
+    if na(atr[1])
+        direction := 1
+    else if prevSuperTrend == prevUpperBand
+        direction := close > upperBand ? -1 : 1
+    else
+        direction := close < lowerBand ? 1 : -1
+    superTrend := direction == -1 ? lowerBand : upperBand
+    [superTrend, direction]
+
+[superTrend, direction] = supertrend(factor, atrPeriod, pdf_ma_out)
+
+SupertrendLong = ta.crossunder(direction, 0), SupertrendShort = ta.crossover(direction, 0)
+
+var Trend = 0
+if SupertrendLong and not SupertrendShort
+    Trend := 1
+
+if SupertrendShort
+    Trend := -1
+
+
+var barColour = #ffffff
+if Trend == 1 
+    barColour := longColor
+if Trend == -1
+    barColour := shortColor
+
+// Plotting
+plot(
+ showST ? superTrend : na, 
+ "PDFMA ST", 
+ color = color.new(barColour, 40), 
+ linewidth = 4
+ )
+
+barcolor(paintCandles ? barColour : na)
+
+// Long and Short Signals (𝕃𝕊)
+plotshape(
+ showlongshort ? SupertrendLong : na,
+ offset=0,
+ title="Long",
+ text="𝕃",
+ style=shape.triangleup,
+ location=location.belowbar,
+ color=barColour,
+ textcolor=barColour, 
+     size = size.tiny
+ )
+plotshape(
+ showlongshort ? SupertrendShort: na,
+ offset=0,
+ title="Short",
+ text="𝕊",
+ style=shape.triangledown,
+ location=location.abovebar,
+ color=barColour,
+ textcolor=barColour, 
+     size = size.tiny
+ )
+
+// Alert Conditions
+alertcondition(SupertrendLong, title="PDF-MA ST Long", message="PDF-MA ST Long {{exchange}}:{{ticker}}")
+alertcondition(SupertrendShort, title="PDF-MA ST Short", message="PDF-MA ST Short {{exchange}}:{{ticker}}")
+
+

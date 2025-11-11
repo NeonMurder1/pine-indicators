@@ -1,0 +1,126 @@
+////////////////////////////////////////////////////////////////////////////////
+//By CYBERNETWORK (JuniAiko)
+//(=^~^=)v~
+//
+//~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ 
+//
+//If you do wish to copy, modify, and publish an alternate version base on this 
+//script, please do not plagiarize and kindly reference/link back to this 
+//original script. =D
+//
+//Note: 
+//In no way is this intended as a financial/investment/trading advice. You are 
+//responsible for your own investment decisions and trades.
+//
+//Please exercise your own judgement for your own trades base on your own 
+//risk-aversion level and goals as an investor or a trader. 
+//
+//The use of OTHER indicators and analysis in conjunction (tailored to your own 
+//style of investing/trading) will help improve confidence of your analysis, for
+//you to determine your own trade decisions.
+// 
+//~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~ * ~
+//
+//Please check out my other indicators sets and series, e.g.
+//* LIVIDITIUM (dynamic levels),
+//* AEONDRIFT (multi-levels standard deviation bands),
+//* FUSIONGAPS (MA based oscillators),
+//* MAJESTIC (Momentum/Acceleration/Jerk Oscillators),
+//* PRISM (pSAR based oscillator, with RSI/StochRSI as well as 
+//  Momentum/Acceleration/Jerk indicators),
+//* PDF (parabolic SAR /w HighLow Trends Indicator/Bar-color-marking + Dynamic 
+//Fib Retrace and Extension Level)
+//* and more to come.
+//
+//Constructive feedback and suggestions are welcome.
+//
+//If you like any of my set of indicators, and it has benefited you in some 
+//ways, please consider tipping a little to my HRT fund. =D[/b]
+//cybernetwork @ EOS
+//37DzRVwodp5UZBYjCKvVoZ5bDdDqhr7798 @ BTC
+//MPr8Zhmpsx2uh3F5R4WD98MRJJpwuLBhA3 @ LTC
+//1Je6c1vvSCW7V2vA6RYDt6CEvqGYgT44F4 @ BCH
+//AS259bXGthuj4VZ1QPzD39W3ut4fQV5giC @ NEO
+//rDonew8fRDkZFv7dZYe5w3L1vJSE51zFAx @ Ripple XRP
+//0xc0161d27201914FC0bAe5e350a193c8658fc4742 @ ETH
+//GAX6UDAJ52OGZW4FVVG3WLGIOJLGG2C7CTO5ZDUK2P6M6QMYBJMSJTDL @ Stellar XLM
+//xrb_16s8cj8eoangfa96shsnkir3wctdzy76ajui4zexek6xmqssweu85rdjxrt4 @ Nano
+////////////////////////////////////////////////////////////////////////////////
+
+//@version=4 
+study(title="Relative Candle Volatility Index", shorttitle="R.CVI", overlay=false, precision=3)
+
+InputSelect = input(false, type=input.bool, title="Calculate base on [Enabled] Candle's Body Length, [Disabled] High-Low.")
+CandleLengthAveraging = input(6, minval=0, title="Range to average the calculated candle lengths.")
+CandleStdev = input(15, minval=0, title="Range to calculate standard deviation.")
+CandleStdevAveraging = input(6, minval=0, title="Standard deviation smoothing range.")
+StdevMultiplier = input(3.5, step=0.1, minval=0, title="Standard deviation multiplier.")
+VIBias = input(1.00, step=0.01, minval=-5, maxval=5, title="RCVI Bias.")
+SmoothVI = input(true, type=input.bool, title="Smooth out the RCVI?")
+SmoothRange = input(1, minval=0, title="RCVI smoothing range.")
+CVICritThreshold = input(60.0, minval=0, maxval=100, type=input.float, minval=0, title="Critical RCVI Threshold (%).")
+percentplot = input(false, type=input.bool, title="Plot as %?")
+RCVI_Rescale = input(30, title="Rescale RCVI to %.")
+
+candlelength = vwma(abs(high-low),CandleLengthAveraging)
+if InputSelect
+    candlelength = vwma(abs(open-close),CandleLengthAveraging)
+
+candlelengthStdev = vwma(stdev(candlelength,CandleStdev),CandleStdevAveraging)*StdevMultiplier
+VolatilityIndex = (candlelength-candlelengthStdev/VIBias)
+
+VINormFactor = input(30, minval=0, title="Normalization Range.")
+NormLower = input(true, type=input.bool, title="Normalize with respect to the RCVI sign with the lower magnitude?")
+VITopATH = highest(VolatilityIndex,VINormFactor)
+VIBotATH = lowest(VolatilityIndex,VINormFactor)
+VIATH = VIBotATH
+if abs(VITopATH) >= abs(VIBotATH) and not NormLower
+    VIATH := VITopATH
+if abs(VITopATH) <= abs(VIBotATH) and NormLower
+    VIATH := VITopATH
+
+RCVISoft = input(3, minval=1, title="RCVI softening factor.")
+VIATH := vwma(VIATH,VINormFactor*15)
+VolatilityIndex := VolatilityIndex/abs(VIATH)/RCVISoft*RCVI_Rescale/100 // Normalise
+
+if SmoothVI
+    VolatilityIndex := sma(VolatilityIndex,SmoothRange)
+
+ThresholdLength = input(15, minval=0, title="Candle range to generate Critical RCVI Threshold lines.")
+VIThTopATH = highest(VolatilityIndex,ThresholdLength)
+VIThBotATH = lowest(VolatilityIndex,ThresholdLength)
+CVITopThreshold = VIThTopATH*CVICritThreshold/100
+CVIBotThreshold = VIThBotATH*CVICritThreshold/100
+
+CVIColor = (VolatilityIndex > 0) and (VolatilityIndex <= CVITopThreshold) ? color.new(color.maroon,45) : (VolatilityIndex > CVITopThreshold) ? color.new(color.orange,45) : (VolatilityIndex < 0) and (VolatilityIndex >= CVIBotThreshold) ? color.new(color.blue,45) : (VolatilityIndex < CVIBotThreshold) ? color.new(color.navy,45) : color.new(color.black,100)
+
+CVIBarColor = (VolatilityIndex > 0) and (VolatilityIndex <= CVITopThreshold) ? color.new(color.orange,45) : (VolatilityIndex > CVITopThreshold) ? color.new(color.yellow,45) : (VolatilityIndex < 0) and (VolatilityIndex >= CVIBotThreshold) ? color.new(color.aqua,45) : (VolatilityIndex < CVIBotThreshold) ? color.new(color.blue,45) : color.new(color.black,100)
+BarColor = input(true, type=input.bool, title="Enable bar-colors based on RCVI-state?")
+barcolor(color = iff(BarColor, CVIBarColor, na), title="Bar Colors")
+
+CVI_Clip = input(true, title="Enable clipping of RCVI to between 1 and -1?")
+PlotCVI = VolatilityIndex >= 1 and CVI_Clip ? 1 : VolatilityIndex <= -1 and CVI_Clip ? -1 : VolatilityIndex
+TopThreshold = CVITopThreshold
+BotThreshold = CVIBotThreshold
+
+if percentplot
+    PlotCVI := PlotCVI*100
+
+zeroplot = plot(0, color=color.gray, linewidth=3, title='Zeroline')
+CVI = plot(PlotCVI, linewidth = 1, color=color.gray, transp = 0, title='RCVI')
+fill(CVI,zeroplot, color = CVIColor, title="RCVI-state fill colors")
+
+TopThreshold := TopThreshold < 0 ? 0 : TopThreshold >= 1 ? 1 : TopThreshold <= -1 ? -1 : TopThreshold
+BotThreshold := BotThreshold > 0 ? 0 : BotThreshold >= 1 ? 1 : BotThreshold <= -1 ? -1 : BotThreshold
+
+if percentplot
+    TopThreshold := TopThreshold*100
+    BotThreshold := BotThreshold*100
+
+plot(TopThreshold, color=color.fuchsia, linewidth=3, title='Upper Threshold')
+plot(BotThreshold, color=color.blue, linewidth=3, title='Lower Threshold')
+
+CVIMap = input(false, type=input.bool, title="Enable RCVI-state Map?")
+if not CVIMap
+    CVIColor := color.new(color.black,100)
+bgcolor(CVIColor, title="Map")

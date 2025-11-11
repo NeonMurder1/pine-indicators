@@ -1,0 +1,140 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © DonovanWall
+
+//██████╗ ██╗    ██╗
+//██╔══██╗██║    ██║
+//██║  ██║██║ █╗ ██║
+//██║  ██║██║███╗██║
+//██████╔╝╚███╔███╔╝
+//╚═════╝  ╚══╝╚══╝ 
+
+//@version=4
+study("Percentile Trend Channel [DW]", shorttitle="PTC [DW]", overlay=true)
+//by Donovan Wall
+
+//This is an experimental study designed to identify the trend of price action over a specified period using percentiles.
+
+//First, the 50th percentile is calculated over the sampling period using the nearest rank method. I've found that this calculation is useful as a proxy for moving averages and other filters of that class.
+//Next, the channel levels are calculated. In this study, there are three channel methods to choose from:
+// -Percentile Donchian, which calculates Donchian Channels using the 100th and 0th percentile ranks
+// -Percentile Keltner, which calculates the 50th percentile true range multiplied by a specified amount, then adds it to and subtracts it from the 50th percentile
+// -Percentile Bollinger, which calculates 50th percentile standard deviation multiplied by a specified amount, then adds it to and subtracts it from the 50th percentile
+
+//I also included a squeeze box option within this script, which is derived from my original Squeeze Box tool.
+//This option detects squeezes in the specified channel's range by a specific percentage, and plots the channel values where the squeeze begins.
+//The box also has a range multiplier, which can be used to expand or contract its range.
+
+//Custom bar colors are included. The color scheme is based on the perceived trend over the specified sampling period.
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+//Updates:
+
+// -> Migrated to v4.
+// -> Cleaned up calculations.
+// -> Revamped color scheme.
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+//Inputs
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+//Source 
+src = input(defval=close, title="Source")
+
+//Sampling Periods
+per = input(defval=14, minval=1, title="Sampling Period")
+
+//Channel Type
+ctype = input(defval="Percentile Donchian", options=["Percentile Donchian", "Percentile Keltner", "Percentile Bollinger"], title="Channel Type")
+
+//Deviation & True Range Multiplier
+ndev = input(defval=2, minval=0, title="Deviation & True Range Multiplier")
+
+//Squeeze Channel
+schan = input(defval=false, title="Enable Squeeze Box")
+
+//Squeeze Percentage Threshold
+sth = input(defval=50, minval=0, maxval=100, title="Squeeze Percentage Threshold")
+
+//Box Range Multiplier
+boxmult = input(defval=1, minval=0, step=0.001, title="Squeeze Range Multiplier")
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+//Definitions
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 
+//Rank Levels
+midrank  = percentile_nearest_rank(src, per, 50)
+highrank = percentile_nearest_rank(src, per, 100)
+lowrank  = percentile_nearest_rank(src, per, 0)
+
+//Standard Deviation
+devsq = pow(src - midrank, 2)
+vari  = percentile_nearest_rank(devsq, per, 50)
+stdev = sqrt(vari)
+
+//Channel Type
+h = ctype=="Percentile Donchian" ? highrank : ctype=="Percentile Keltner" ? midrank + percentile_nearest_rank(tr, per, 50)*ndev : midrank + stdev*ndev
+l = ctype=="Percentile Donchian" ? lowrank : ctype=="Percentile Keltner" ? midrank - percentile_nearest_rank(tr, per, 50)*ndev : midrank - stdev*ndev
+
+//Squeeze Box
+maxrng = highest(h, per) - lowest(l, per)
+currng = h - l
+sqz    = currng <= maxrng*(sth/100) ? 1 : 0
+sqh1   = valuewhen((sqz[1]==0) and (sqz==1), h, 0)
+sql1   = valuewhen((sqz[1]==0) and (sqz==1), l, 0)
+sqm    = (sqh1 + sql1)/2
+sqd    = (sqh1 - sql1)/2
+sqh    = sqm + sqd*boxmult
+sql    = sqm - sqd*boxmult
+
+//Conditions
+bullsig1    = ctype=="Percentile Donchian" ? (h > h[1] ? 1 : 0) : (src > h) ? 1 : 0
+bearsig1    = ctype=="Percentile Donchian" ? (l < l[1] ? 1 : 0) : (src < l) ? 1 : 0
+bullsig2    = src >= sqh ? 1 : 0
+bearsig2    = src <= sql ? 1 : 0
+var bulltrend1 = 0.0
+bulltrend1    := bullsig1 ? 1 : bearsig1 ? 0 : bulltrend1
+var bulltrend2 = 0.0
+bulltrend2    := bullsig2 ? 1 : bearsig2 ? 0 : bulltrend2
+var beartrend1 = 0.0
+beartrend1    := bearsig1 ? 1 : bullsig1 ? 0 : beartrend1
+var beartrend2 = 0.0
+beartrend2    := bearsig2 ? 1 : bullsig2 ? 0 : beartrend2
+var mid_bull   = 0.0
+mid_bull      := midrank > nz(midrank[1]) ? 1 : midrank < nz(midrank[1]) ? 0 : mid_bull
+var mid_bear   = 0.0
+mid_bear      := midrank < nz(midrank[1]) ? 1 : midrank > nz(midrank[1]) ? 0 : mid_bear
+
+//Colors
+mcolor    = mid_bull ? #05ffa6 : mid_bear ? #ff0a70 : #cccccc
+barcolor1 = bulltrend1 and (src > midrank) and (src > nz(src[1])) ? #05ffa6 : bulltrend1 and (src > midrank) and (src <= nz(src[1])) ? #017f52 : 
+             beartrend1 and (src < midrank) and (src < nz(src[1])) ? #ff0a70 : beartrend1 and (src < midrank) and (src >= nz(src[1])) ? #990040 : #cccccc
+barcolor2 = bulltrend1 and bulltrend2 and (src > midrank) and (src > nz(src[1])) and (src > sqh) ? #05ffa6 : 
+             bulltrend1 and bulltrend2 and (src > midrank) and (src <= nz(src[1])) and (src > sqh) ? #017f52 : 
+             beartrend1 and beartrend2 and (src < midrank) and (src < nz(src[1])) and (src < sql) ? #ff0a70 : 
+             beartrend1 and beartrend2 and (src < midrank) and (src >= nz(src[1])) and (src < sql) ? #990040 : 
+             (src <= sqh) and (src >= sql) and bulltrend1 and (src > nz(src[1])) and (src > midrank) ? #0afaff : 
+             (src <= sqh) and (src >= sql) and beartrend1 and (src < nz(src[1])) and (src < midrank) ? #f00aff : #cccccc
+barcolor  = schan ? barcolor2 : barcolor1
+
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+//Outputs
+//-----------------------------------------------------------------------------------------------------------------------------------------------------------------
+ 
+//Mid Percentile
+mplot = plot(midrank, color=mcolor, linewidth=3, transp=0, title="50th Percentile Line") 
+
+//Channel Levels
+hplot = plot(h, color=#000000, transp=100, title="Channel High")
+lplot = plot(l, color=#000000, transp=100, title="Channel Low")
+
+//Squeeze Box Levels
+sqhplot = plot(schan ? sqh : na, color=#cccccc,  transp=100, title="Squeeze Box High")
+sqlplot = plot(schan ? sql : na, color=#cccccc, transp=100, title="Squeeze Box Low")
+
+//Fills
+fill(sqhplot, sqlplot, color=#cccccc, transp=80,  title="Squeeze Box Fill")
+fill(hplot, lplot,     color=#000000, transp=60, title="Channel Fill")
+
+//Bar Color
+barcolor(barcolor)

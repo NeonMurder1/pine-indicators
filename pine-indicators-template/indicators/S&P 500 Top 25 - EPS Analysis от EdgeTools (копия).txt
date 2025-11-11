@@ -1,0 +1,486 @@
+//@version=6
+indicator("S&P 500 Top 25 - EPS Analysis", overlay=false, precision=2)
+
+// Define TradingView colors
+color tv_blue = #2962FF
+color tv_green = #4CAF50
+color tv_red = #FF5252
+color tv_orange = #FF9800
+color tv_purple = #9C27B0
+color tv_gray = #787B86
+color tv_light_gray = #E0E3EB
+color tv_dark_blue = #1E88E5
+color tv_teal = #00897B
+color tv_header_bg = #172a3a
+color tv_panel_bg = #131722
+
+// Input of ticker symbols (with default values of the Top 25)
+ticker1 = input.symbol("NASDAQ:AAPL", "Ticker 1", group="Companies 1-5")
+ticker2 = input.symbol("NASDAQ:MSFT", "Ticker 2", group="Companies 1-5")
+ticker3 = input.symbol("NASDAQ:NVDA", "Ticker 3", group="Companies 1-5")
+ticker4 = input.symbol("NASDAQ:GOOGL", "Ticker 4", group="Companies 1-5")
+ticker5 = input.symbol("NASDAQ:AMZN", "Ticker 5", group="Companies 1-5")
+
+ticker6 = input.symbol("NASDAQ:META", "Ticker 6", group="Companies 6-10")
+ticker7 = input.symbol("NYSE:BRK.B", "Ticker 7", group="Companies 6-10")
+ticker8 = input.symbol("NASDAQ:TSLA", "Ticker 8", group="Companies 6-10")
+ticker9 = input.symbol("NYSE:UNH", "Ticker 9", group="Companies 6-10")
+ticker10 = input.symbol("NYSE:JNJ", "Ticker 10", group="Companies 6-10")
+
+ticker11 = input.symbol("NYSE:JPM", "Ticker 11", group="Companies 11-15")
+ticker12 = input.symbol("NYSE:V", "Ticker 12", group="Companies 11-15")
+ticker13 = input.symbol("NYSE:PG", "Ticker 13", group="Companies 11-15")
+ticker14 = input.symbol("NASDAQ:AVGO", "Ticker 14", group="Companies 11-15")
+ticker15 = input.symbol("NYSE:MA", "Ticker 15", group="Companies 11-15")
+
+ticker16 = input.symbol("NYSE:HD", "Ticker 16", group="Companies 16-20")
+ticker17 = input.symbol("NYSE:MRK", "Ticker 17", group="Companies 16-20")
+ticker18 = input.symbol("NYSE:CVX", "Ticker 18", group="Companies 16-20")
+ticker19 = input.symbol("NASDAQ:PEP", "Ticker 19", group="Companies 16-20")
+ticker20 = input.symbol("NYSE:ABBV", "Ticker 20", group="Companies 16-20")
+
+ticker21 = input.symbol("NASDAQ:ADBE", "Ticker 21", group="Companies 21-25")
+ticker22 = input.symbol("NYSE:KO", "Ticker 22", group="Companies 21-25")
+ticker23 = input.symbol("NYSE:LLY", "Ticker 23", group="Companies 21-25")
+ticker24 = input.symbol("NYSE:MCD", "Ticker 24", group="Companies 21-25")
+ticker25 = input.symbol("NASDAQ:COST", "Ticker 25", group="Companies 21-25")
+
+// Number of tickers to use (1-25)
+use_tickers = input.int(25, "Number of tickers", minval=1, maxval=25)
+
+// Display options 
+show_actual = input.bool(true, "Show actual EPS", inline="actual", group="Display Options")
+actual_color = input.color(tv_green, "", inline="actual", group="Display Options")
+show_estimate = input.bool(true, "Show estimated EPS", inline="estimate", group="Display Options") 
+estimate_color = input.color(tv_blue, "", inline="estimate", group="Display Options")
+show_surprise = input.bool(true, "Show surprise", inline="surprise", group="Display Options")
+surprise_color = input.color(tv_red, "", inline="surprise", group="Display Options")
+show_surprise_percent = input.bool(true, "Show surprise %", inline="surprise_pct", group="Display Options")
+surprise_pct_color = input.color(tv_orange, "", inline="surprise_pct", group="Display Options")
+
+// Visual style options
+line_width = input.int(2, "Line width", minval=1, maxval=4, group="Visual Style")
+background_enabled = input.bool(false, "Colorize background based on EPS surprise", group="Visual Style")
+bars_back = input.int(252, "Lookback period for calculations", minval=5, maxval=500, group="Visual Style")
+
+// EPS values (actual, estimated)
+// Ticker 1
+eps1_actual = request.earnings(ticker1, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps1_estimate = request.earnings(ticker1, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+// Calculate surprise manually
+eps1_surprise = eps1_actual - eps1_estimate
+
+// Ticker 2
+eps2_actual = request.earnings(ticker2, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps2_estimate = request.earnings(ticker2, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps2_surprise = eps2_actual - eps2_estimate
+
+// Ticker 3
+eps3_actual = request.earnings(ticker3, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps3_estimate = request.earnings(ticker3, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps3_surprise = eps3_actual - eps3_estimate
+
+// Ticker 4
+eps4_actual = request.earnings(ticker4, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps4_estimate = request.earnings(ticker4, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps4_surprise = eps4_actual - eps4_estimate
+
+// Ticker 5
+eps5_actual = request.earnings(ticker5, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps5_estimate = request.earnings(ticker5, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps5_surprise = eps5_actual - eps5_estimate
+
+// Remaining tickers 6-25 (identical structure)
+eps6_actual = request.earnings(ticker6, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps6_estimate = request.earnings(ticker6, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps6_surprise = eps6_actual - eps6_estimate
+
+eps7_actual = request.earnings(ticker7, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps7_estimate = request.earnings(ticker7, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps7_surprise = eps7_actual - eps7_estimate
+
+eps8_actual = request.earnings(ticker8, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps8_estimate = request.earnings(ticker8, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps8_surprise = eps8_actual - eps8_estimate
+
+eps9_actual = request.earnings(ticker9, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps9_estimate = request.earnings(ticker9, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps9_surprise = eps9_actual - eps9_estimate
+
+eps10_actual = request.earnings(ticker10, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps10_estimate = request.earnings(ticker10, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps10_surprise = eps10_actual - eps10_estimate
+
+eps11_actual = request.earnings(ticker11, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps11_estimate = request.earnings(ticker11, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps11_surprise = eps11_actual - eps11_estimate
+
+eps12_actual = request.earnings(ticker12, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps12_estimate = request.earnings(ticker12, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps12_surprise = eps12_actual - eps12_estimate
+
+eps13_actual = request.earnings(ticker13, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps13_estimate = request.earnings(ticker13, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps13_surprise = eps13_actual - eps13_estimate
+
+eps14_actual = request.earnings(ticker14, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps14_estimate = request.earnings(ticker14, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps14_surprise = eps14_actual - eps14_estimate
+
+eps15_actual = request.earnings(ticker15, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps15_estimate = request.earnings(ticker15, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps15_surprise = eps15_actual - eps15_estimate
+
+eps16_actual = request.earnings(ticker16, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps16_estimate = request.earnings(ticker16, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps16_surprise = eps16_actual - eps16_estimate
+
+eps17_actual = request.earnings(ticker17, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps17_estimate = request.earnings(ticker17, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps17_surprise = eps17_actual - eps17_estimate
+
+eps18_actual = request.earnings(ticker18, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps18_estimate = request.earnings(ticker18, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps18_surprise = eps18_actual - eps18_estimate
+
+eps19_actual = request.earnings(ticker19, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps19_estimate = request.earnings(ticker19, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps19_surprise = eps19_actual - eps19_estimate
+
+eps20_actual = request.earnings(ticker20, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps20_estimate = request.earnings(ticker20, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps20_surprise = eps20_actual - eps20_estimate
+
+eps21_actual = request.earnings(ticker21, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps21_estimate = request.earnings(ticker21, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps21_surprise = eps21_actual - eps21_estimate
+
+eps22_actual = request.earnings(ticker22, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps22_estimate = request.earnings(ticker22, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps22_surprise = eps22_actual - eps22_estimate
+
+eps23_actual = request.earnings(ticker23, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps23_estimate = request.earnings(ticker23, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps23_surprise = eps23_actual - eps23_estimate
+
+eps24_actual = request.earnings(ticker24, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps24_estimate = request.earnings(ticker24, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps24_surprise = eps24_actual - eps24_estimate
+
+eps25_actual = request.earnings(ticker25, earnings.actual, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps25_estimate = request.earnings(ticker25, earnings.estimate, gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_on)
+eps25_surprise = eps25_actual - eps25_estimate
+
+// Sum of values for each earnings type
+sum_actual = 0.0
+sum_estimate = 0.0
+sum_surprise = 0.0
+valid_count_actual = 0
+valid_count_estimate = 0
+valid_count_surprise = 0
+
+// Process tickers 1-25 and calculate sums
+if use_tickers >= 1
+    if not na(eps1_actual) and not na(eps1_estimate)
+        sum_actual += eps1_actual
+        valid_count_actual += 1
+        sum_estimate += eps1_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps1_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 2
+    if not na(eps2_actual) and not na(eps2_estimate)
+        sum_actual += eps2_actual
+        valid_count_actual += 1
+        sum_estimate += eps2_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps2_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 3
+    if not na(eps3_actual) and not na(eps3_estimate)
+        sum_actual += eps3_actual
+        valid_count_actual += 1
+        sum_estimate += eps3_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps3_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 4
+    if not na(eps4_actual) and not na(eps4_estimate)
+        sum_actual += eps4_actual
+        valid_count_actual += 1
+        sum_estimate += eps4_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps4_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 5
+    if not na(eps5_actual) and not na(eps5_estimate)
+        sum_actual += eps5_actual
+        valid_count_actual += 1
+        sum_estimate += eps5_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps5_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 6
+    if not na(eps6_actual) and not na(eps6_estimate)
+        sum_actual += eps6_actual
+        valid_count_actual += 1
+        sum_estimate += eps6_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps6_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 7
+    if not na(eps7_actual) and not na(eps7_estimate)
+        sum_actual += eps7_actual
+        valid_count_actual += 1
+        sum_estimate += eps7_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps7_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 8
+    if not na(eps8_actual) and not na(eps8_estimate)
+        sum_actual += eps8_actual
+        valid_count_actual += 1
+        sum_estimate += eps8_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps8_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 9
+    if not na(eps9_actual) and not na(eps9_estimate)
+        sum_actual += eps9_actual
+        valid_count_actual += 1
+        sum_estimate += eps9_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps9_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 10
+    if not na(eps10_actual) and not na(eps10_estimate)
+        sum_actual += eps10_actual
+        valid_count_actual += 1
+        sum_estimate += eps10_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps10_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 11
+    if not na(eps11_actual) and not na(eps11_estimate)
+        sum_actual += eps11_actual
+        valid_count_actual += 1
+        sum_estimate += eps11_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps11_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 12
+    if not na(eps12_actual) and not na(eps12_estimate)
+        sum_actual += eps12_actual
+        valid_count_actual += 1
+        sum_estimate += eps12_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps12_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 13
+    if not na(eps13_actual) and not na(eps13_estimate)
+        sum_actual += eps13_actual
+        valid_count_actual += 1
+        sum_estimate += eps13_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps13_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 14
+    if not na(eps14_actual) and not na(eps14_estimate)
+        sum_actual += eps14_actual
+        valid_count_actual += 1
+        sum_estimate += eps14_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps14_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 15
+    if not na(eps15_actual) and not na(eps15_estimate)
+        sum_actual += eps15_actual
+        valid_count_actual += 1
+        sum_estimate += eps15_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps15_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 16
+    if not na(eps16_actual) and not na(eps16_estimate)
+        sum_actual += eps16_actual
+        valid_count_actual += 1
+        sum_estimate += eps16_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps16_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 17
+    if not na(eps17_actual) and not na(eps17_estimate)
+        sum_actual += eps17_actual
+        valid_count_actual += 1
+        sum_estimate += eps17_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps17_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 18
+    if not na(eps18_actual) and not na(eps18_estimate)
+        sum_actual += eps18_actual
+        valid_count_actual += 1
+        sum_estimate += eps18_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps18_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 19
+    if not na(eps19_actual) and not na(eps19_estimate)
+        sum_actual += eps19_actual
+        valid_count_actual += 1
+        sum_estimate += eps19_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps19_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 20
+    if not na(eps20_actual) and not na(eps20_estimate)
+        sum_actual += eps20_actual
+        valid_count_actual += 1
+        sum_estimate += eps20_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps20_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 21
+    if not na(eps21_actual) and not na(eps21_estimate)
+        sum_actual += eps21_actual
+        valid_count_actual += 1
+        sum_estimate += eps21_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps21_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 22
+    if not na(eps22_actual) and not na(eps22_estimate)
+        sum_actual += eps22_actual
+        valid_count_actual += 1
+        sum_estimate += eps22_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps22_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 23
+    if not na(eps23_actual) and not na(eps23_estimate)
+        sum_actual += eps23_actual
+        valid_count_actual += 1
+        sum_estimate += eps23_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps23_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 24
+    if not na(eps24_actual) and not na(eps24_estimate)
+        sum_actual += eps24_actual
+        valid_count_actual += 1
+        sum_estimate += eps24_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps24_surprise
+        valid_count_surprise += 1
+
+if use_tickers >= 25
+    if not na(eps25_actual) and not na(eps25_estimate)
+        sum_actual += eps25_actual
+        valid_count_actual += 1
+        sum_estimate += eps25_estimate
+        valid_count_estimate += 1
+        sum_surprise += eps25_surprise
+        valid_count_surprise += 1
+
+// Calculate averages
+avg_actual = valid_count_actual > 0 ? sum_actual / valid_count_actual : na
+avg_estimate = valid_count_estimate > 0 ? sum_estimate / valid_count_estimate : na
+avg_surprise = valid_count_surprise > 0 ? sum_surprise / valid_count_surprise : na
+
+// Surprise in percent (relative to estimated EPS)
+// If estimate is available and greater than 0, calculate the percentage
+avg_surprise_percent = valid_count_estimate > 0 and valid_count_actual > 0 and avg_estimate != 0 ? 
+                         (avg_actual - avg_estimate) / math.abs(avg_estimate) * 100 : na
+
+// Create plot variables based on display options
+plot_actual = show_actual ? avg_actual : na
+plot_estimate = show_estimate ? avg_estimate : na
+plot_surprise = show_surprise ? avg_surprise : na
+plot_surprise_percent = show_surprise_percent ? avg_surprise_percent : na
+
+// Enhanced visualizations 
+plot(plot_actual, title="Actual EPS", color=actual_color, linewidth=line_width, style=plot.style_line)
+plot(plot_estimate, title="Estimated EPS", color=estimate_color, linewidth=line_width, style=plot.style_line)
+plot(plot_surprise, title="Surprise", color=surprise_color, linewidth=line_width, style=plot.style_line)
+plot(plot_surprise_percent, title="Surprise %", color=surprise_pct_color, linewidth=line_width, style=plot.style_line)
+
+// Plot zero line
+hline(0, title="Zero line", color=tv_gray, linestyle=hline.style_dashed)
+
+// Background coloring based on EPS surprise (moved to global scope)
+// Only set background color if it's enabled and we have valid surprise percent data
+bg_color = background_enabled and not na(avg_surprise_percent) ? 
+          (avg_surprise_percent > 3 ? color.new(tv_green, 90) : 
+           avg_surprise_percent < -3 ? color.new(tv_red, 90) : 
+           na) : na
+bgcolor(bg_color)
+
+// Add recent highs/lows for context
+highest_surprise = ta.highest(avg_surprise_percent, bars_back)
+lowest_surprise = ta.lowest(avg_surprise_percent, bars_back)
+
+// Enhanced information table 
+var table info = table.new(position.top_right, 3, 8, bgcolor=tv_panel_bg, border_width=1)
+if barstate.islast
+    // Logo/title row
+    table.cell(info, 0, 0, "S&P 500", text_color=color.white, bgcolor=tv_header_bg, text_size=size.normal)
+    table.cell(info, 1, 0, "Top " + str.tostring(use_tickers), text_color=color.white, bgcolor=tv_header_bg, text_size=size.normal)
+    table.cell(info, 2, 0, "EPS Analysis", text_color=color.white, bgcolor=tv_header_bg, text_size=size.normal)
+    
+    // Actual row
+    table.cell(info, 0, 1, "Actual:", text_color=color.white)
+    table.cell(info, 1, 1, str.tostring(avg_actual, "#.##"), text_color=actual_color)
+    table.cell(info, 2, 1, "(" + str.tostring(valid_count_actual) + ")", text_color=tv_gray)
+    
+    // Estimated row
+    table.cell(info, 0, 2, "Estimated:", text_color=color.white)
+    table.cell(info, 1, 2, str.tostring(avg_estimate, "#.##"), text_color=estimate_color)
+    table.cell(info, 2, 2, "(" + str.tostring(valid_count_estimate) + ")", text_color=tv_gray)
+    
+    // Surprise row
+    table.cell(info, 0, 3, "Surprise:", text_color=color.white)
+    table.cell(info, 1, 3, str.tostring(avg_surprise, "#.##"), text_color=surprise_color)
+    table.cell(info, 2, 3, "(" + str.tostring(valid_count_surprise) + ")", text_color=tv_gray)
+    
+    // Surprise % row
+    table.cell(info, 0, 4, "Surprise %:", text_color=color.white)
+    surprise_color_val = not na(avg_surprise_percent) ? (avg_surprise_percent >= 0 ? tv_green : tv_red) : tv_gray
+    table.cell(info, 1, 4, str.tostring(avg_surprise_percent, "#.##") + "%", text_color=surprise_color_val)
+    table.cell(info, 2, 4, "", text_color=tv_gray)
+    
+    // Range information
+    table.cell(info, 0, 5, "Highest:", text_color=color.white)
+    table.cell(info, 1, 5, str.tostring(highest_surprise, "#.##") + "%", text_color=tv_green)
+    table.cell(info, 2, 5, "(" + str.tostring(bars_back) + " bars)", text_color=tv_gray)
+    
+    table.cell(info, 0, 6, "Lowest:", text_color=color.white)
+    table.cell(info, 1, 6, str.tostring(lowest_surprise, "#.##") + "%", text_color=tv_red)
+    table.cell(info, 2, 6, "", text_color=tv_gray)
+    
+    // Last update row
+    table.cell(info, 0, 7, "Last update:", text_color=color.white)
+    table.cell(info, 1, 7, str.format("{0,date,yyyy-MM-dd}", timenow), text_color=color.white)
+    table.cell(info, 2, 7, "", text_color=color.white)

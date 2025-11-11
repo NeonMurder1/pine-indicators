@@ -1,0 +1,37 @@
+//@version=4
+study(shorttitle="Volume Price Average Range", title="Solar VPR", overlay=false)
+stdema(src, len, avg, vol)=> 
+	std = pow(src[len - 1] - avg, 2)
+	//alfaVal = 2 / (len + 1)
+	for i = (len - 1 - 1)  to 0
+	    alfaVal = 2 * vol[i]/(vol[i] + ema(vol[i] ,len) * len)
+	    std := std + alfaVal * (pow(src[i] - avg, 2) - std)
+	std := sqrt(std)
+// Function for outputting the i-th Sigma deviation band
+devBand(flag, i, basis, dev) =>
+    if(i > 0 or not(flag))
+        return = basis + i*dev
+    else
+        return = basis * basis / (basis + abs(i) * dev)
+evma(srcVal, lenVal)=>ema(srcVal * (nz(volume,1.0)), lenVal) / ema(nz(volume,1.0), lenVal)
+period = input(defval=14, title="Slow MA Period")
+period2 = input(defval=5, title="Fast MA Period")
+length = input(defval=40, title="EMVA Length")
+src = close
+Smoothinglen = 12
+devbandfg = true
+
+basis = evma(src, length)
+dev = ema(stdema(src, length, basis, nz(volume,1.0)), Smoothinglen)
+upper = devBand(devbandfg, 2, basis, dev)
+lower = devBand(devbandfg, -2, basis, dev)
+bbr = (src - upper)/(upper - lower)+1
+bbma = sma(bbr, period)
+bbma2 = sma(bbr, period2)
+
+plot(bbr, "EVMA Deviation", color=color.teal, transp=90)
+plot(bbma, "EVMA Slow Average", color=color.gray)
+plot(bbma2, "EVMA Fast Average", color=color.blue)
+band1 = hline(0, "Oversold", color=#606060, linestyle=hline.style_dotted)
+band0 = hline(1, "Overbought", color=#606060, linestyle=hline.style_dotted)
+middle = hline(.5, "Middle", color=#606060, linestyle=hline.style_dotted)

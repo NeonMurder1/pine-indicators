@@ -1,0 +1,140 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © eykpunter
+
+//@version=5
+indicator("REVE Markers", overlay=true)
+eventnorm=input.int(title="more than ### percent of usual is deemed considerable", defval=130, minval=100, step=5, group="For both range and volume:")/100
+eventadd =input.int(title="add ### percent to this for excessive", defval=120, minval=10, step=5, group="For both range and volume:")/100
+usual=input.int(title="as usual take the median of previous ## periods", defval=20, minval=5, group="For both range and volume:")
+barwish = input.bool(title='show volume markers above and range markers below candles', defval=false, group="For both range and volume:")
+
+//colors
+scol=input.color(color.rgb(85,154,29,0), "considerable volume expansion, normal range (institutional traders)", group="Situational Colors") //green
+bcol=input.color(color.new(color.aqua, 0), "excessive volume expansion, normal range (institutional traders)", group="Situational Colors") //blue
+//nvcol=input.color(color.rgb(67,70,81, 0), "Beyond normal range extension, normal volume", group="Situational Colors") //dark gray when volume data provided
+nvcol=input.color(color.rgb(74,20,140, 0), "Beyond normal range extension, neutral color", group="Situational Colors") //dark purple when no volume data provided
+cscol=input.color(color.new(color.red, 0), "combination of considerable events (effective volume expansion, occasional traders)", group="Situational Colors") //red
+cbcol=input.color(color.new(color.fuchsia, 0), "combination of considerable and excessive event (fierce trading, occasional traders)", group="Situational Colors") //fuchsia
+climcol=input.color(color.new(color.maroon, 0), "combination of excessive events (climactic trading, occasional traders)", group="Situational Colors") //maroon
+
+//calculate presence and context of events 
+curvol=na(volume)? 0:volume //If no volume reported, indicator will show all range extensions because curvol allways has a numerical value
+//nvna=na(volume)             //true if no volume reported, false when volume is provided
+morevol=ta.median(curvol[1], usual)*eventnorm            //small volume level at least ### times recently usual i.e. median
+hugevol=ta.median(curvol[1], usual)*(eventnorm+eventadd) //big volume level at least #small + #add times recently usual 
+barrange=ta.tr(true)
+moreran=ta.median(barrange[1], usual)*eventnorm
+hugeran=ta.median(barrange[1], usual)*(eventnorm+eventadd)
+
+//small and big volume expansions
+vsevent1=curvol != 0 and curvol>=morevol and curvol<=hugevol //considerable volume expansion
+vbevent1=curvol != 0 and curvol>hugevol  //excessive volume expansion
+vsevent=vsevent1 and barrange<moreran //considerable volume expansion without range effect
+vbevent=vbevent1 and barrange<moreran //excessive volume expansion without range effect
+
+//small and big range extensions
+rsevent1=barrange>moreran and barrange<hugeran //limited range extension
+rbevent1=barrange>=hugeran //big range extension
+rsevent=barrange>moreran and barrange<hugeran and (curvol<=morevol or curvol==0)//limited range extension without volume support
+rbevent=barrange>=hugeran and (curvol<=morevol or curvol==0) //big range extension wthout volume support
+
+//small and big combination of volume and range expansions or extensions
+csevent=vsevent1 and rsevent1           //combination of small events
+cbevent=(vsevent1 and rbevent1) or (vbevent1 and rsevent1)        //combination containing a big and small event (heated)
+climevent=vbevent1 and rbevent1 //combination of big events (climactic)
+
+//bar situations
+barup=close>open and close>close[1]   
+bardown=close<open and close<close[1]
+barsame=not barup and not bardown
+
+//calculate event situations
+//bottom markers
+vseventup=  vsevent and barup   //event leading to rize
+vseventdown=vsevent and bardown //event leading to fall
+vseventnone=vsevent and barsame //event without effect on price
+
+vbeventup=  vbevent and barup   //event leading to rize
+vbeventdown=vbevent and bardown //event leading to fall
+vbeventnone=vbevent and barsame //event without effect on price
+
+rseventup=  rsevent and barup   //event leading to rize
+rseventdown=rsevent and bardown //event leading to fall
+rseventnone=rsevent and barsame //event without effect on price
+
+rbeventup=  rbevent and barup   //event leading to rize
+rbeventdown=rbevent and bardown //event leading to fall
+rbeventnone=rbevent and barsame //event without effect on price
+
+cseventup=  csevent and barup   //event leading to rize
+cseventdown=csevent and bardown //event leading to fall
+cseventnone=csevent and barsame //event without effect on price
+
+cbeventup=  cbevent and barup   //event leading to rize
+cbeventdown=cbevent and bardown //event leading to fall
+cbeventnone=cbevent and barsame //event without effect on price
+
+climeventup=  climevent and barup   //event leading to rize
+climeventdown=climevent and bardown //event leading to fall
+climeventnone=climevent and barsame //event without effect on price
+
+//bar markers marking volume events
+barvs=  barwish? vsevent1:na   //small volume event 
+barvb=  barwish? vbevent1:na     //big volume event 
+
+//bar markers marking range events
+barrsup=   barwish? rsevent1 and barup   : na //limitied range event up
+barrsdown= barwish? rsevent1 and bardown : na //limited range event down
+barrsnone= barwish? rsevent1 and barsame : na //limited range event without effect on price
+barrbup=   barwish? rbevent1 and barup   : na //big range event up
+barrbdown= barwish? rbevent1 and bardown : na //big range event down
+barrbnone= barwish? rbevent1 and barsame : na //big range event without effect on price
+
+//plot markers
+//bottom volume markers
+plotshape(vseventup, style=shape.triangleup, location=location.bottom, size=size.tiny, color=scol)
+plotshape(vseventdown, style=shape.triangledown, location=location.bottom, size=size.tiny, color=scol)
+plotshape(vseventnone, style=shape.square, location=location.bottom, size=size.tiny, color=scol)
+
+plotshape(vbeventup, style=shape.triangleup, location=location.bottom, size=size.tiny, color=bcol)
+plotshape(vbeventdown, style=shape.triangledown, location=location.bottom, size=size.tiny, color=bcol)
+plotshape(vbeventnone, style=shape.square, location=location.bottom, size=size.tiny, color=bcol)
+
+//bottom range markers (all cross)
+//plotshape(rseventup, style=shape.arrowup, location=location.bottom, size=size.tiny, color=color.blue )//  color=nvna?nvnacol:nvcol )
+plotchar(rseventup, char="↑", location=location.bottom, size=size.tiny, color=color.blue )
+//plotshape(rseventdown, style=shape.labeldown, location=location.bottom, size=size.tiny, color=color.red )//  color=nvna?nvnacol:nvcol)
+plotchar(rseventdown, char="↓", location=location.bottom, size=size.tiny, color=color.red)
+plotshape(rseventnone, style=shape.cross, location=location.bottom, size=size.tiny, color=nvcol ) //color=nvna?nvnacol:nvcol)
+
+//plotshape(rbeventup, style=shape.xcross, location=location.bottom, size=size.tiny, color=color.blue )//  color=nvna?nvnacol:nvcol )
+plotchar(rbeventup, char="Λ", location=location.bottom, size=size.tiny, color=color.blue )
+//plotshape(rbeventdown, style=shape.xcross, location=location.bottom, size=size.tiny, color=color.red )//  color=nvna?nvnacol:nvcol)
+plotchar(rbeventdown, char="V", location=location.bottom, size=size.tiny, color=color.red )
+plotshape(rbeventnone, style=shape.xcross, location=location.bottom, size=size.tiny, color=nvcol ) //color=nvna?nvnacol:nvcol)
+
+//bottom combination markers
+plotshape(cseventup, style=shape.triangleup, location=location.bottom, size=size.tiny, color=cscol)
+plotshape(cseventdown, style=shape.triangledown, location=location.bottom, size=size.tiny, color=cscol)
+plotshape(cseventnone, style=shape.square, location=location.bottom, size=size.tiny, color=cscol)
+
+plotshape(cbeventup, style=shape.triangleup, location=location.bottom, size=size.tiny, color=cbcol)
+plotshape(cbeventdown, style=shape.triangledown, location=location.bottom, size=size.tiny, color=cbcol)
+plotshape(cbeventnone, style=shape.square, location=location.bottom, size=size.tiny, color=cbcol)
+
+plotshape(climeventup, style=shape.triangleup, location=location.bottom, size=size.tiny, color=climcol)
+plotshape(climeventdown, style=shape.triangledown, location=location.bottom, size=size.tiny, color=climcol)
+plotshape(climeventnone, style=shape.square, location=location.bottom, size=size.tiny, color=climcol)
+
+//bar volume markers (all cross)
+plotshape(barvs, style=shape.cross, location=location.abovebar, size=size.tiny, color=nvcol)
+plotshape(barvb, style=shape.xcross, location=location.abovebar, size=size.tiny, color=nvcol)
+
+//bar range markers
+plotshape(barrsup, style=shape.triangleup, location=location.belowbar, size=size.tiny, color=nvcol)
+plotshape(barrsdown, style=shape.triangledown, location=location.belowbar, size=size.tiny, color=nvcol)
+plotshape(barrsnone, style=shape.cross, location=location.belowbar, size=size.tiny, color=nvcol)
+
+plotshape(barrbup,   style=shape.triangleup, location=location.belowbar, size=size.small, color=nvcol)
+plotshape(barrbdown, style=shape.triangledown, location=location.belowbar, size=size.small, color=nvcol)
+plotshape(barrbnone, style=shape.cross, location=location.belowbar, size=size.small, color=nvcol)

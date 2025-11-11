@@ -1,0 +1,76 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © ScorsoneEnterprises
+
+//@version=6
+indicator('SCE GANN Predictions', overlay = true, timeframe = "")
+
+//---------------------------------------------
+//---------------Inputs------------------------
+//---------------------------------------------
+tfInput = input.timeframe('2', 'Select the TimeFrame to analyze', group = 'timeframe')
+showGann = input.bool(true, 'Show the GANN Wave?', group = 'plotting')
+Gn = input.int(15, 'Select a lookback period for the GANN Wave', group = 'plotting')
+Gr_min = input.float(0.05, 'Min ratio for the GANN Wave', group = 'optimization')
+Gr_max = input.float(0.2, 'Max ratio for the GANN Wave', group = 'optimization')
+Gr_step = input.float(0.01, 'Step for the GANN Wave ratio', group = 'optimization')
+
+//----------------------------------------------
+//---------------Globals------------------------
+//----------------------------------------------
+
+V(n) =>
+    prices = array.new_float(n)
+    for i = 0 to n - 1 by 1
+        array.set(prices, i, close[i] - open[i])
+    velocity = array.sum(prices) / n
+    velocity
+
+G(n, Gr) =>
+    velocity_GANN = V(n)
+    end_date = n + n * 2
+    delta_days = end_date - n
+    end_price = close[n] + Gr * delta_days * velocity_GANN
+    end_price
+
+evaluateGr(n, Gr) =>
+    GANN = G(n, Gr)
+    ep_sma = ta.sma(GANN, n)
+    // Use a simple evaluation metric: Sum of squared errors (SSE)
+    sse = 0.0
+    for i = 0 to n - 1 by 1
+        sse := sse + math.pow(close[i] - ep_sma, 2)
+        sse
+    sse
+
+//----------------------------------------------
+//---------------Optimization-------------------
+//----------------------------------------------
+var float optimalGr = na
+var float minSSE = na
+
+i = Gr_min
+while i < Gr_max
+    sse = evaluateGr(Gn, i)
+    if na(minSSE) or sse < minSSE
+        minSSE := sse
+        optimalGr := i
+        optimalGr
+    i := i + Gr_step
+    i
+
+//----------------------------------------------
+//---------------GANN prediction----------------
+//----------------------------------------------
+GANN = G(Gn, optimalGr)
+
+ep_sma = showGann ? ta.sma(GANN, Gn) : na
+
+color ep_color = na
+if close > ep_sma
+    ep_color := color.teal
+    ep_color
+else if close < ep_sma
+    ep_color := color.red
+    ep_color
+
+plot(ep_sma, title = 'GANN', color = ep_color, linewidth = 2)

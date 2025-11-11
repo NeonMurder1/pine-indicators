@@ -1,0 +1,37 @@
+//@version=4
+study("Smooth HA Candles MTF",overlay=true)
+
+higherTf = input("D", "TF", type = input.resolution)
+
+data =close
+data1=open
+data2=low
+data3=high
+
+ec1ft = security(syminfo.tickerid, higherTf, data[1], gaps = barmerge.gaps_off,  lookahead = barmerge.lookahead_on) 
+ec1ft1 = security(syminfo.tickerid, higherTf, data1[1], gaps = barmerge.gaps_off,  lookahead = barmerge.lookahead_on) 
+ec1ft2 = security(syminfo.tickerid, higherTf, data2[1], gaps = barmerge.gaps_off,  lookahead = barmerge.lookahead_on)
+ec1ft3 = security(syminfo.tickerid, higherTf, data3[1], gaps = barmerge.gaps_off,  lookahead = barmerge.lookahead_on)
+//
+//Heiken Ashi
+
+o = security(heikinashi(syminfo.tickerid), higherTf, ec1ft1)
+c = security(heikinashi(syminfo.tickerid), higherTf, ec1ft)
+l = security(heikinashi(syminfo.tickerid), higherTf, ec1ft2)
+h = security(heikinashi(syminfo.tickerid), higherTf, ec1ft3)
+//plotcandle(o, h, l, c, color=o < c ? color.lime : color.red)
+
+//
+len=input(25)
+
+l1=ema(l,len)
+h1=ema(h,len)
+o1 = ema(o,len)
+c1 = ema(c,len)
+
+plotcandle(o1, h1, l1, c1, color=o1 < c1 ? color.green : color.red)
+//
+
+//
+plotshape(crossover ( c1,o1) and c1>o1, "up arrow", shape.triangleup, location.belowbar, color.green,size=size.small)
+plotshape(crossunder ( c1,o1) and c1<o1, "down arrow", shape.triangledown, location.abovebar, color.red,size=size.small)

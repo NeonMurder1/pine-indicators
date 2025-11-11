@@ -1,0 +1,153 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © PrometheusAnalytics
+
+//@version=5
+indicator("Prometheus Cauchy Probability", max_bars_back = 499)
+
+//---------------------------------------------
+//---------------Inputs------------------------
+//---------------------------------------------
+len_use = input.bool(false, "Would you like to input your own bars back?", group = "prediction")
+custom_len = input.int(100, "Custom bars back", group = "prediction")
+pred = input.float(0.5, "How many percentages would you like to calculate for in either direction?", group = "prediction")
+pred := pred/100
+//----------------------------------------------
+//---------------Globals------------------------
+//----------------------------------------------
+
+cauchy_cdf(x, x0, gamma)=>
+    1 / math.pi * math.atan((x - x0) / gamma) + 0.5
+
+var float hi = na
+var float lo = na
+var int bars_since_session_start = na
+
+float gamma = na
+float gamma_lo = na
+
+min1 = timeframe.period == '1'
+
+min2 = timeframe.period == '2'
+
+min3 = timeframe.period == '3'
+
+min4 = timeframe.period == '4'
+
+min5 = timeframe.period =='5'
+
+min10 = timeframe.period == '10'
+
+min15 = timeframe.period == '15'
+
+min20 = timeframe.period == "20"
+
+min30 = timeframe.period == '30'
+
+min45 = timeframe.period == '45'
+
+min60 = timeframe.period == '60'
+
+min120 = timeframe.period == '120'
+
+min180 = timeframe.period == '180'
+
+min240 = timeframe.period == '240'
+
+minD = timeframe.period == 'D'
+
+
+Len = 0
+
+if len_use == false
+    if min1
+        Len := 390
+
+    else if min2
+        Len := 195
+
+    else if min3
+        Len := 130
+
+    else if min4
+        Len := 98
+
+    else if min5
+        Len := 78
+
+    else if min10
+        Len := 39
+
+    else if min15
+        Len := 26
+
+    else if min20
+        Len := 17
+
+    else if min30
+        Len := 13
+
+    else if min45
+        Len := 9
+
+    else if min60
+        Len := 7
+
+    else if min120
+        Len := 4
+
+    else if min180
+        Len := 3
+
+    else if min240
+        Len := 2
+
+    else if minD
+        Len := 5
+
+else
+    Len := custom_len
+
+//----------------------------------------------
+//---------------Session------------------------
+//----------------------------------------------
+// Define the session time
+inSession = (time(timeframe.period, "0401-1958"))
+
+// Check if it's the first bar of the session
+is_first = na(time(timeframe.period, "0401-1958")[1]) and inSession
+
+if (is_first)
+    hi := high
+    lo := low
+    bars_since_session_start := 2
+else if (inSession)
+    if (bars_since_session_start == na)
+        bars_since_session_start := 2
+    else
+        bars_since_session_start += 1
+
+    if (high > hi)
+        hi := high
+    if (low < lo)
+        lo := low
+
+//----------------------------------------------
+//---------------Probs--------------------------
+//----------------------------------------------
+
+// Calculate x and gamma
+x = close * (1 + pred)
+x0 = hi
+gamma := ta.stdev(close, Len, false)
+y = cauchy_cdf(x, x0, gamma)
+
+//down
+x_lo = close * (1 - pred)
+x0_lo = lo
+y_lo = cauchy_cdf(x_lo, x0_lo, gamma)
+
+//----------------------------------------------
+//---------------Plots--------------------------
+//----------------------------------------------
+plot(y, title = "Chance to rise", color = color.blue)
+plot(1-y, title = "Chance to fall", color = color.purple)

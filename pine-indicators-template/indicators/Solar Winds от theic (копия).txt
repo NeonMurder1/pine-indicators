@@ -1,0 +1,37 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © theic
+
+//@version=4
+study("Solar Winds")
+
+period = input(35, title="Period")
+
+solar(per) =>
+    highval = highest(high, per)
+    lowval  = lowest(low, per)
+    price   = (high + low) / 2  
+    val1    = 0.0
+    val1   := 0.66 * ((price - lowval) / (highval - lowval) - 0.5) + 0.67 * nz(val1[1])
+    val2    = val1 > 0.99 ? 0.999 : val1 < -0.99 ? -0.999 : val1
+    sol    = 0.0
+    sol   := 0.5 * log((1 + val2) / max(1 - val2, 0.001)) + 0.5 * nz(sol[1])
+solar_buff = solar(period)
+
+signal_up = false
+signal_down = false
+level = 0
+msg_text = "None"
+color_hist = (solar_buff > level ? color.green : color.red)
+if nz(solar_buff[1]) < level and solar_buff > level
+    signal_up := true
+    color_hist := color.yellow
+    
+if nz(solar_buff[1]) > level and solar_buff < level
+    signal_down := true
+    color_hist := color.yellow
+    
+alertcondition(condition = signal_up, message = "{{ticker}}, Signal UP", title = "Solar Cross Up")    
+alertcondition(condition = signal_down, message = "{{ticker}}, Signal DOWN", title = "Solar Cross Down")
+
+plot(series = solar_buff, style = plot.style_histogram, color = color_hist, linewidth = 4)
+plot(series = solar_buff, style = plot.style_line, color = color_hist, linewidth = 4)

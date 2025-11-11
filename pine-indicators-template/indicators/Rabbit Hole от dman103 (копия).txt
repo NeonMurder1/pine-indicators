@@ -1,0 +1,157 @@
+//@version=4
+study(title="Rabbit Hole", shorttitle="AHL")
+// This work is licensed under a Creative Commons Attribution-ShareAlike 4.0 International License https://creativecommons.org/licenses/by-sa/4.0/
+// © dman103
+// How deep is the Rabbit hole? Interesting experiment that finds the RISING HIGHS and FALLING LOWS and place the difference between highs and lows into separate arrays.
+// ==Caulcations==
+// In case current high is higher than previous high, we calculate the a value by subtracting the current highest high with the previous High (lowest high) into array A, 
+// same method for the lows just in Array B.
+// Since we subtract highs and lows it means velocity is taken into consideration with the plotting.
+// After adding a new value we remove the oldest value if the array is bigger than the Look back length, for lows and highs array.
+// Afterwards we sum up the subtracted Lows and highs (separately) and plot them separately, We can also smooth them a bit with Moving averages like HMA, JMA, KAMA and more.
+// == RULES ==
+// When High Lines crosses the Low Line we get a GREEN tunnel.
+// When Low Lines crosses the High line we get the RED tunnel.
+// The Greenish the stronger the up trend.
+// The Redish the stronger the down trend.
+
+// == NOTES ==
+// Bars are not colored by default.
+// Better for higher time frames, 1 hour and above.
+// Enjoy and like if you like!
+// Follow up for new scripts: https://www.tradingview.com/u/dman103/#published-scripts
+
+
+mav = input(title="Moving Average Type", defval="KAMA", options=["SMA", "EMA", "WMA", "TMA","HMA","JMA","KAMA", "VAR", "WWMA", "ZLEMA", "TSF"])
+length= input(3,title="Moving Average Length")
+lookBack = input(5, title="Look back")
+colorBars = input(false,title="Color bars")
+
+
+diff_lb = lookBack/16 //get total number of range colors
+f_c_green(_g)   => _g > diff_lb*15 ? #008000ff : _g > diff_lb*14 ? #008000ef : _g > diff_lb*13 ? #008000df : _g > diff_lb*12 ? #008000cf : _g > diff_lb*11 ? #008000bf : _g > diff_lb*10 ? #008000af : _g > diff_lb*9 ? #0080009f : _g >diff_lb*8 ? #0080008f : _g > diff_lb*7 ? #0080007f : _g > diff_lb*6 ? #0080006f : _g > diff_lb*5 ? #0080005f : _g > diff_lb*4 ? #0080004f : _g > diff_lb*3 ? #0080003f : _g > diff_lb*2 ? #0080002f : _g > diff_lb ? #0080001f : #00800010
+f_c_red(_g)     => _g >  diff_lb*15 ? #FF0000ff : _g >diff_lb*14 ? #FF0000ef : _g > diff_lb*13 ? #FF0000df : _g > diff_lb*12 ? #FF0000cf : _g >  diff_lb*11 ? #FF0000bf : _g > diff_lb*10 ? #FF0000af : _g > diff_lb*9 ? #FF00009f : _g >diff_lb*8? #FF00008f : _g >  diff_lb*7  ? #FF00007f : _g > diff_lb*6  ? #FF00006f : _g > diff_lb*5 ? #FF00005f : _g >diff_lb*4  ? #FF00004f : _g > diff_lb*3? #FF00003f : _g > diff_lb*2  ? #FF00002f : _g > diff_lb  ? #FF00001f : #FF000010
+i_fastAlpha = input(2, "KAMA's alpha (only for KAMA)", minval=1)
+
+fastAlpha = 2.0 / (i_fastAlpha + 1)
+slowAlpha = 2.0 / (31)
+
+// Initialize high and low arrays
+var a_highLevels = array.new_float(lookBack,0)
+var a_lowLevels = array.new_float(lookBack,0) 
+
+
+///////Moving Averages
+getMA(src, length) =>
+    ma = 0.0
+    if mav == "SMA"
+        ma := sma(src, length)
+        ma
+
+    if mav == "EMA"
+        ma := ema(src, length)
+        ma
+
+    if mav == "WMA"
+        ma := wma(src, length)
+        ma
+
+    if mav == "TMA"
+        ma := sma(sma(src, ceil(length / 2)), floor(length / 2) + 1)
+        ma
+    if mav == "HMA"
+        ma := hma(src,length)
+        ma
+    if mav == "JMA"
+        beta = 0.45*(length-1)/(0.45*(length-1)+2)
+        alpha = beta
+        tmp0 = 0.0, tmp1 = 0.0, tmp2 = 0.0, tmp3 = 0.0, tmp4 = 0.0
+        tmp0 := (1-alpha)*src + alpha*nz(tmp0[1])
+        tmp1 := (src - tmp0[0])*(1-beta) + beta*nz(tmp1[1])
+        tmp2 := tmp0[0] + tmp1[0]
+        tmp3 := (tmp2[0] - nz(tmp4[1]))*((1-alpha)*(1-alpha)) + (alpha*alpha)*nz(tmp3[1])
+        tmp4 := nz(tmp4[1]) + tmp3[0]
+        ma := tmp4
+        ma
+    if mav == "KAMA"
+        momentum = abs(change(src, length))
+        volatility = sum(abs(change(src)), length)
+        efficiencyRatio = volatility != 0 ? momentum / volatility : 0
+        smoothingConstant = pow((efficiencyRatio * (fastAlpha - slowAlpha)) + slowAlpha, 2)
+        var kama = 0.0
+        kama := nz(kama[1], src) + smoothingConstant * (src - nz(kama[1], src))
+        ma:=kama
+        ma
+    if mav == "VAR"
+        valpha=2/(length+1)
+        vud1=src>src[1] ? src-src[1] : 0
+        vdd1=src<src[1] ? src[1]-src : 0
+        vUD=sum(vud1,9)
+        vDD=sum(vdd1,9)
+        vCMO=nz((vUD-vDD)/(vUD+vDD))
+        VAR=0.0
+        VAR:=nz(valpha*abs(vCMO)*src)+(1-valpha*abs(vCMO))*nz(VAR[1])
+        ma := VAR
+        ma
+
+    if mav == "WWMA"
+        wwalpha = 1/ length
+        WWMA = 0.0
+        WWMA := wwalpha*src + (1-wwalpha)*nz(WWMA[1])
+        ma := WWMA
+        ma
+
+    if mav == "ZLEMA"
+        zxLag = length/2==round(length/2) ? length/2 : (length - 1) / 2
+        zxEMAData = (src + (src - src[zxLag]))
+        ZLEMA = ema(zxEMAData, length)
+        ma := ZLEMA
+        ma
+
+    if mav == "TSF"
+        lrc = linreg(src, length, 0)
+        lrc1 = linreg(src,length,1)
+        lrs = (lrc-lrc1)
+        TSF = linreg(src, length, 0)+lrs
+        ma := TSF
+        ma
+    ma
+////////////////////////////////////////////
+//MAIN LOGIC
+////////////////////////////////////////////
+
+if rising(high, 1)
+    //If array is not empty, remove FIRST (oldest) value of the LOW array
+    if (array.size(a_lowLevels) > 0)
+        array.shift(a_lowLevels)
+    //Get the difference between the highest high and the previous high to help measure velocity.
+    high_factor = high-high[1]
+    //Add the new high_factor value to the end of the array (latest)
+    array.push(a_highLevels,high_factor)
+    // if we have more values than the lookBack limit, than remove first value of High array
+    if (array.size(a_highLevels)>lookBack)
+        array.shift(a_highLevels)
+
+if falling(low, 1)
+    //Same for LOW
+    if (array.size(a_highLevels) > 0)
+        array.shift(a_highLevels)
+    low_factor = low[1]-low
+    array.push(a_lowLevels, low_factor)
+    if (array.size(a_lowLevels)>lookBack)
+        array.shift(a_lowLevels)
+sum_low = nz(array.sum(a_lowLevels))
+sum_high = nz(array.sum(a_highLevels))
+low_ema= getMA(sum_low,length)
+high_ema= getMA(sum_high,length)
+plot_low=plot(low_ema,color=color.red)
+plot_high=plot(high_ema,color=color.green)
+diff=0.0
+if (high_ema>=low_ema)
+    diff:=abs((high_ema/low_ema))
+else
+    diff:=abs((low_ema/high_ema))
+fillColors =  high_ema>=low_ema ? f_c_green(diff) : f_c_red(diff)
+fill(plot_low,plot_high, color =fillColors,transp=60)
+barColors =  high_ema>=low_ema ? color.lime : color.maroon
+barcolor (color= colorBars ? barColors : na  )

@@ -1,0 +1,102 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © PrometheusAnalytics
+
+//@version=5
+indicator("Prometheus IQR bands", overlay=true)
+
+lkb_  = input.int(20, "End of Lookback Length range", group = "Bands Calculation", tooltip = "The amount of prior bars we use to calculate")
+sens_ = input.float(15, "Enter IQR Factor (Percentage)", group = "Bands Calculation", tooltip = "The IQR sensitivity, for example 15 means: 15-85 IQR")
+upper_color = input.color(color.blue, "Upper band color", group = "Plotting")
+lower_color = input.color(color.purple, "Lower band color", group = "Plotting")
+high_color_gradient = input.color(color.rgb(10, 35, 60), "High Fill color", group = "Plotting")
+low_color_gradient = input.color(color.rgb(60, 15, 70), "Low Fill color", group = "Plotting")
+
+//----------------------------
+//---------FUNCTIONS----------
+//----------------------------
+
+// Function to calculate the percentile value
+percentile(arr, p) =>
+    index = math.floor(p * (array.size(arr) - 1) + 0.5)
+    array.get(arr, index)
+
+
+manual_iqr(data, lower_percentile, upper_percentile)=>
+    // Sort the data
+    data_arr = array.new<float>()
+    for i = 0 to lkb_
+        data_arr.push(close[i])
+    
+    array.sort(data_arr)
+    sorted_data = data_arr.copy()
+    n = array.size(data_arr)
+    
+    // Calculate the specified percentiles
+    Q1 = percentile(sorted_data, lower_percentile)
+    Q3 = percentile(sorted_data, upper_percentile)
+    
+    // Calculate IQR
+    IQR = Q3 - Q1
+    
+    // Return the IQR
+    IQR
+
+
+
+IQRB(lkb_, sens)=>
+    sens_l = sens/100
+    sens_h = (100-sens)/100
+    val = manual_iqr(close, sens_l, sens_h)
+    sma = ta.sma(close, int(lkb_))
+    upper = sma + val
+    lower = sma - val
+    [upper, lower, sma]
+
+//----------------------------
+//----------------------------
+//---------BANDS--------------
+//----------------------------
+[upper, lower, sma] = IQRB(lkb_, sens_)
+
+
+//----------------------------
+//---------PLOTS--------------
+//----------------------------
+upper_plot = plot(upper, "Upper Band", color=upper_color)
+plot(sma, "SMA", color = color.gray, style = plot.style_linebr)
+lower_plot = plot(lower, "Lower Band", color=lower_color)
+
+fill_color = color.from_gradient(close, lower, upper, low_color_gradient, high_color_gradient)
+fill(upper_plot, lower_plot, color = fill_color)
+
+// ————— Constants
+string ST_1  = "Prometheus Analytics"
+
+// ————— Inputs
+string textInput1       = ST_1
+
+string infoBoxSizeInput = "small"
+string infoBoxYPosInput = "top"
+string infoBoxXPosInput = "right"
+int    heightInput      = 5
+int    widthInput       = 10
+color  textColorInput   = color.rgb(53, 140, 255)
+color  bgColorInput     = color.rgb(20, 3, 50)
+// }
+
+// ———————————————————— Visuals {
+
+// We use `var` to only initialize the table on the first bar.
+var table watermark = table.new(infoBoxYPosInput + "_" + infoBoxXPosInput, 1, 1)
+
+// We only populate the table on the last bar; it's more efficient.
+if barstate.islast
+    // This `varip` variable will preserve its value across realtime updates.
+    varip bool changeText = true
+    // Toggle this value on each update.
+    changeText := not changeText
+    // If there's a "Text 2" string in inputs and it's time to flip, change the text.
+    string txt = textInput1
+    // Populate our table cell.
+    table.cell(watermark, 0, 0, txt, widthInput, heightInput, textColorInput, text_size = infoBoxSizeInput, bgcolor = bgColorInput)
+// }
