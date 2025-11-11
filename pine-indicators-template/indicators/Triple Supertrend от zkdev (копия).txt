@@ -1,0 +1,87 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © legroszach
+
+//@version=5
+indicator('Triple Supertrend', overlay=true, format=format.price, precision=2, shorttitle='3x SuperTrend')
+
+// inputs
+Periods = input(title='ATR Period 1', defval=10)
+src = input(hl2, title='Source 1')
+Multiplier = input.float(title='ATR Multiplier 1', step=0.1, defval=1.0)
+
+// calculations
+atr = ta.atr(Periods)
+up = src - Multiplier * atr
+up1 = nz(up[1], up)
+up := close[1] > up1 ? math.max(up, up1) : up
+dn = src + Multiplier * atr
+dn1 = nz(dn[1], dn)
+dn := close[1] < dn1 ? math.min(dn, dn1) : dn
+trend = 1
+trend := nz(trend[1], trend)
+trend := trend == -1 and close > dn1 ? 1 : trend == 1 and close < up1 ? -1 : trend
+
+// plotting
+upPlot = plot(trend == 1 ? up : na, title='Up Trend', style=plot.style_linebr, linewidth=2, color=color.new(color.green, 0))
+greenSignal_1 = trend == 1 and trend[1] == -1
+plotshape(greenSignal_1 ? up : na, title='UpTrend Begins', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.green, 0))
+dnPlot = plot(trend == 1 ? na : dn, title='Down Trend', style=plot.style_linebr, linewidth=2, color=color.new(color.red, 0))
+redSignal_1 = trend == -1 and trend[1] == 1
+plotshape(redSignal_1 ? dn : na, title='DownTrend Begins', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.red, 0))
+
+// inputs
+Periods2 = input(title='ATR Period 2', defval=11)
+src2 = input(hl2, title='Source 2')
+Multiplier2 = input.float(title='ATR Multiplier 2', step=0.1, defval=2.0)
+
+// calculations
+atr_2 = ta.atr(Periods2)
+up_2 = src2 - Multiplier2 * atr_2
+up1_2 = nz(up_2[1], up_2)
+up_2 := close[1] > up1_2 ? math.max(up_2, up1_2) : up_2
+dn_2 = src2 + Multiplier2 * atr_2
+dn1_2 = nz(dn_2[1], dn_2)
+dn_2 := close[1] < dn1_2 ? math.min(dn_2, dn1_2) : dn_2
+trend_2 = 1
+trend_2 := nz(trend_2[1], trend_2)
+trend_2 := trend_2 == -1 and close > dn1_2 ? 1 : trend_2 == 1 and close < up1_2 ? -1 : trend_2
+
+// plotting
+upPlot_2 = plot(trend_2 == 1 ? up_2 : na, title='Up Trend', style=plot.style_linebr, linewidth=2, color=color.new(color.green, 0))
+greenSignal_2 = trend_2 == 1 and trend_2[1] == -1
+plotshape(greenSignal_2 ? up_2 : na, title='UpTrend Begins', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.green, 0))
+dnPlot_2 = plot(trend_2 == 1 ? na : dn_2, title='Down Trend', style=plot.style_linebr, linewidth=2, color=color.new(color.red, 0))
+redSignal_2 = trend_2 == -1 and trend_2[1] == 1
+plotshape(redSignal_2 ? dn_2 : na, title='DownTrend Begins', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.red, 0))
+
+// inputs
+Periods3 = input(title='ATR Period 3', defval=12)
+src3 = input(hl2, title='Source 3')
+Multiplier3 = input.float(title='ATR Multiplier 3', step=0.1, defval=3.0)
+
+// calculations
+atr_3 = ta.atr(Periods3)
+up_3 = src3 - Multiplier3 * atr_3
+up1_3 = nz(up_3[1], up_3)
+up_3 := close[1] > up1_3 ? math.max(up_3, up1_3) : up_3
+dn_3 = src3 + Multiplier3 * atr_3
+dn1_3 = nz(dn_3[1], dn_3)
+dn_3 := close[1] < dn1_3 ? math.min(dn_3, dn1_3) : dn_3
+trend_3 = 1
+trend_3 := nz(trend_3[1], trend_3)
+trend_3 := trend_3 == -1 and close > dn1_3 ? 1 : trend_3 == 1 and close < up1_3 ? -1 : trend_3
+
+// plotting
+upPlot_3 = plot(trend_3 == 1 ? up_3 : na, title='Up Trend', style=plot.style_linebr, linewidth=2, color=color.new(color.green, 0))
+greenSignal_3 = trend_3 == 1 and trend_3[1] == -1
+plotshape(greenSignal_3 ? up_3 : na, title='UpTrend Begins', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.green, 0))
+dnPlot_3 = plot(trend_3 == 1 ? na : dn_3, title='Down Trend', style=plot.style_linebr, linewidth=2, color=color.new(color.red, 0))
+redSignal_3 = trend_3 == -1 and trend_3[1] == 1
+plotshape(redSignal_3 ? dn_3 : na, title='DownTrend Begins', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.red, 0))
+
+green_alert = not ( trend == -1 or trend_2 == -1 or trend_3 == -1 ) and ( trend[1] == -1 or trend_2[1] == -1 or trend_3[1] == -1 )
+red_alert = not ( trend == 1 or trend_2 == 1 or trend_3 == 1 ) and ( trend[1] == 1 or trend_2[1] == 1 or trend_3[1] == 1 )
+
+alertcondition(green_alert, "Triple Supertrend Green", "Triple Supertrend lines are all green.")
+alertcondition(red_alert, "Triple Supertrend Red", "Triple Supertrend lines are all red.")
+

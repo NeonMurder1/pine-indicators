@@ -1,0 +1,15 @@
+//@version=2
+//author:KıvanÇ @fr3762
+study("Turtle Trade Channels", shorttitle="TTC", overlay=true)
+len1=input(20, "long length")
+len2=input(10, "short length")
+up=highest(high,len1)
+down=lowest(low,len1)
+sup=highest(high,len2)
+sdown=lowest(low,len2)
+K1=iff(barssince(close>up[1])<=barssince(close<down[1]),down,up)
+K2=iff(barssince(close>up[1])<=barssince(close<down[1]),sdown,sup)
+K3=iff(close>K1,down,na)
+K4=iff(close<K1,up,na)
+plot(K1, title="Trade Signal", color=red, linewidth=3, style=2)
+plot(K2, title="Exit Line", color=blue, linewidth=2, style=6)

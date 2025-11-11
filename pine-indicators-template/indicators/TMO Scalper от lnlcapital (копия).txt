@@ -1,0 +1,207 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+//
+// @version=5
+//
+// TMO (T)rue (M)omentum (O)scillator) MTF Special Scapler Version
+//
+// TMO Scalper is a special custom version that was designed exclusively for lower time frame scalps (1-5min charts)
+// 
+// This version of the TMO Oscillator print the signals ONLY when the higher aggregation is aligned with the current (lower aggregation)
+//
+// Created by L&L Capital
+// 
+
+indicator("TMO Scalper", shorttitle="TMO Scalper", overlay=false) 
+
+// Inputs
+
+TimeFrame1 = input.timeframe('1', "TMO 1", options = ['1','2','3','5','10','15','20','30','45',"60","120","180","240",'D','2D','3D','4D','W','2W','3W','M','2M','3M'], group = "Time Frames")
+TimeFrame2 = input.timeframe('5', "TMO 2", options = ['1','2','3','5','10','15','20','30','45',"60","120","180","240",'D','2D','3D','4D','W','2W','3W','M','2M','3M'], group = "Time Frames")
+TimeFrame3 = input.timeframe('30', "TMO 3", options = ['1','2','3','5','10','15','20','30','45',"60","120","180","240",'D','2D','3D','4D','W','2W','3W','M','2M','3M'], group = "Time Frames")
+
+tmolength = input.int(14,title = "Length", group = "Settings")
+calcLength = input(5, title = "Calc Length", group = "Settings")
+smoothLength = input(3, title = "Smooth Length", group = "Settings")
+
+dotsize = input(3, title = "Signal Size", group = "Signal Settings")
+offset = input(2,title = "Signal Offset", group = "Signal Settings")
+oblevel = input(9,title = "OB Extreme Threshold", group = "Signal Settings")
+oslevel = input(-9,title = "OS Extreme Threshold", group = "Signal Settings")
+
+ShowTMO1 = input(defval = true, title = "Show TMO 1", group = "True Momentum Oscillator 1")
+TMO1Bullish = input(#27c22e, title = "Bullish", group = "True Momentum Oscillator 1")
+TMO1Bearish = input(#ff0000, title = "Bearish", group = "True Momentum Oscillator 1")
+TMO1CloudUp = input(color.new(#27c22e, 75), title = "Fill Bullish", group = "True Momentum Oscillator 1")
+TMO1CloudDn = input(color.new(#ff0000, 75), title = "Fill Bearish", group = "True Momentum Oscillator 1")
+
+ShowTMO2 = input(defval = true, title = "Show TMO 2", group = "True Momentum Oscillator 2")
+TMO2Bullish = input(#27c22e, title = "Bullish", group = "True Momentum Oscillator 2")
+TMO2Bearish = input(#ff0000, title = "Bearish", group = "True Momentum Oscillator 2")
+TMO2CloudUp = input(color.new(#27c22e, 75), title = "Fill Bullish", group = "True Momentum Oscillator 2")
+TMO2CloudDn = input(color.new(#ff0000, 75), title = "Fill Bearish", group = "True Momentum Oscillator 2")
+
+ShowTMO3 = input(defval=true, title = "Show TMO 3", group = "True Momentum Oscillator 3")
+TMO3Bullish = input(#006400, title = "Bullish", group = "True Momentum Oscillator 3")
+TMO3Bearish = input(#800000, title = "Bearish", group = "True Momentum Oscillator 3")
+TMO3CloudUp = input(color.new(#27c22e, 75), title = "Fill Bullish", group = "True Momentum Oscillator 3")
+TMO3CloudDn = input(color.new(#ff0000, 75), title = "Fill Bearish", group = "True Momentum Oscillator 3")
+
+ShowTMOS1 = input(defval = true, title = "Show TMO 1 Signals", group = "True Momentum Oscillator 1 Signals")
+ShowTMOS11 = input(defval = false, title = "Show TMO 1 Signals (Extremes Only)", group = "True Momentum Oscillator 1 Signals")
+TMO1UpSignal = input(#27c22e, title = "TMO 1 Up Signal", group = "True Momentum Oscillator 1 Signals")
+TMO1DnSignal = input(#ff0000, title = "TMO 1 Down Signal", group = "True Momentum Oscillator 1 Signals")
+TMO1CharUp = input('▴',title = "TMO 1 Up", group = "True Momentum Oscillator 1 Signals")
+TMO1CharDn = input('▾',title = "TMO 1 Down", group = "True Momentum Oscillator 1 Signals")
+
+ShowTMOS2 = input(defval = true, title = "Show TMO 2 Signals", group = "True Momentum Oscillator 2 Signals")
+ShowTMOS22 = input(defval = false, title = "Show TMO 2 Signals (Extremes Only)", group = "True Momentum Oscillator 2 Signals")
+TMO2UpSignal = input(#006400, title = "TMO 2 Up Signal", group = "True Momentum Oscillator 2 Signals")
+TMO2DnSignal = input(#800000, title = "TMO 2 Down Signal", group = "True Momentum Oscillator 2 Signals")
+TMO2CharUp = input('▴',title = "TMO 2 Up", group = "True Momentum Oscillator 2 Signals")
+TMO2CharDn = input('▾',title = "TMO 2 Down", group = "True Momentum Oscillator 2 Signals")
+
+ShowUpperL = input(defval = false, title = "Show OB Line", group = "Oscillator Settings")
+UpperLineColor = input(#ff0000, title = "OB Line Color", group = "Oscillator Settings")
+ShowLowerL = input(defval = false, title = "Show OS Line", group = "Oscillator Settings")
+LowerLineColor = input(#27c22e, title = "OS Line Color", group = "Oscillator Settings")
+ShowObLine = input(defval = true, title = "Show OB Cutoff Line", group = "Oscillator Settings")
+ObLineColor = input(#ff0000, title = "OB Cutoff Line Color", group = "Oscillator Settings")
+ShowOsLine = input(defval = true, title = "Show OS Cutoff Line", group = "Oscillator Settings")
+OsLineColor = input(#27c22e, title = "OS Cutoff Line Color", group = "Oscillator Settings")
+ShowObFill = input(defval = true, title = "Show OB Fill", group = "Oscillator Settings")
+OBFillColor = input(color.new(#ff0000, 75), title = "OB Fill Color", group = "Oscillator Settings")
+ShowOsFill = input(defval = true, title = "Show OS Fill", group = "Oscillator Settings")
+OSFillColor = input(color.new(#27c22e, 75), title = "OS Fill Color", group = "Oscillator Settings")
+ShowZeroLine = input(defval = true, title = "Show Zero Line", group = "Oscillator Settings")
+ZeroLineColor = input(color.new(#2a2e39, 0), title = "Zero Line Color", group = "Oscillator Settings")
+
+// TMO 1 Calculations
+
+srcc1 = request.security(syminfo.tickerid, TimeFrame1, close)
+srco1 = request.security(syminfo.tickerid, TimeFrame1, open)
+o1 =  srco1
+c1 =  srcc1
+
+data1 = 0
+for i1 = 1 to tmolength -1
+    if c1 > o1[i1]
+        data1 := data1 + 1
+    if c1 < o1[i1]
+        data1 := data1 - 1
+
+
+EMA1 = ta.ema(data1,calcLength)
+Main1 = request.security(syminfo.tickerid, TimeFrame1, ta.ema(EMA1, smoothLength))
+Signal1 = request.security(syminfo.tickerid, TimeFrame1, ta.ema(Main1, smoothLength))
+
+// TMO 2 Calculations
+
+srcc2 = request.security(syminfo.tickerid, TimeFrame2, close)
+srco2 = request.security(syminfo.tickerid, TimeFrame2, open)
+
+o2 =  srco2
+c2 =  srcc2
+
+data2 = 0
+for i2 = 1 to tmolength -1
+    if c2 > o2[i2]
+        data2 := data2 + 1
+    if c2 < o2[i2]
+        data2 := data2 - 1
+
+
+EMA2 = ta.ema(data2,calcLength)
+Main2 = request.security(syminfo.tickerid, TimeFrame2, ta.ema(EMA2, smoothLength))
+Signal2 = request.security(syminfo.tickerid, TimeFrame2, ta.ema(Main2, smoothLength))
+
+// TMO 3 Calculations
+
+srcc3 = request.security(syminfo.tickerid, TimeFrame3, close)
+srco3 = request.security(syminfo.tickerid, TimeFrame3, open)
+
+o3 =  srco3
+c3 =  srcc3
+
+data3 = 0
+for i3 = 1 to tmolength -1
+    if c3 > o3[i3]
+        data3 := data3 + 1
+    if c3 < o3[i3]
+        data3 := data3 - 1
+
+
+EMA3 = ta.ema(data3,calcLength)
+Main3 = request.security(syminfo.tickerid, TimeFrame3, ta.ema(EMA3, smoothLength))
+Signal3 = request.security(syminfo.tickerid, TimeFrame3, ta.ema(Main3, smoothLength))
+
+// TMO Scalper Signals
+
+mainln = (15*Main1/tmolength)
+signaln = (15*Signal1/tmolength)
+mainln2 = (15*Main2/tmolength)
+signaln2 = (15*Signal2/tmolength)
+mainln3 = (15*Main3/tmolength)
+signaln3 = (15*Signal3/tmolength)
+
+// TMO 1 Bullish Signal    
+plotchar(ShowTMOS1 and ta.crossover(mainln, signaln) and (mainln2 > signaln2) ? (mainln-offset) : na, title = "TMO 1 Up Signal", char = TMO1CharUp, location = location.absolute, size = size.small, color = TMO1UpSignal, editable = false)
+
+// TMO 1 Bearish Signal
+plotchar(ShowTMOS1 and ta.crossover(signaln, mainln) and (mainln2 < signaln2) ? (mainln+offset) : na, title = "TMO 1 Down Signal", char = TMO1CharDn, location = location.absolute, size = size.small, color = TMO1DnSignal, editable = false)
+
+// TMO 1 Bullish Signal (Oversolds Only)   
+plotchar(ShowTMOS11 and ta.crossover(mainln, signaln) and (mainln < oslevel) and (mainln2 > signaln2) ? (mainln-offset) : na, title = "TMO 1 Up (Oversolds Only)", char = TMO1CharUp, location = location.absolute, size = size.small, color = TMO1UpSignal, editable = false)
+
+// TMO 1 Bearish Signal (Overboughts Only)
+plotchar(ShowTMOS11 and ta.crossover(signaln, mainln) and (mainln > oblevel) and (mainln2 < signaln2) ? (mainln+offset) : na, title = "TMO 1 Down (Overboughts Only)", char = TMO1CharDn, location = location.absolute, size = size.small, color = TMO1DnSignal, editable = false)
+
+// TMO 2 Bullish Signal
+plotchar(ShowTMOS2 and ta.crossover(mainln2, signaln2) and (mainln3 > signaln3) ? (mainln2-offset) : na, title = "TMO 2 Up Signal", char = TMO2CharUp, location = location.absolute, size = size.normal, color = TMO2UpSignal, editable = false)
+
+// TMO 2 Bearish Signal
+plotchar(ShowTMOS2 and ta.crossover(signaln2, mainln2) and (mainln3 < signaln3) ? (mainln2+offset) : na, title = "TMO 2 Down Signal", char = TMO2CharDn, location = location.absolute, size = size.normal, color = TMO2DnSignal, editable = false)
+
+// TMO 2 Bullish Signal (Oversolds Only)  
+plotchar(ShowTMOS22 and ta.crossover(mainln2, signaln2) and (mainln2 < oslevel) and (mainln3 > signaln3) ? (mainln2-offset) : na, title = "TMO 2 Up (Oversolds Only)", char = TMO2CharUp, location = location.absolute, size = size.normal, color = TMO2UpSignal, editable = false)
+
+// TMO 2 Bearish Signal (Overboughts Only)
+plotchar(ShowTMOS22 and ta.crossover(signaln2, mainln2) and (mainln2 > oblevel) and (mainln3 < signaln3) ? (mainln2+offset) : na, title = "TMO 2 Down (Overboughts Only)", char = TMO2CharDn, location = location.absolute, size = size.normal, color = TMO2DnSignal, editable = false)
+
+// TMO 1 Plots
+
+color1 = ShowTMO1 and Main1 > Signal1 ? TMO1Bullish : ShowTMO1 ? TMO1Bearish : na
+mainLine1 = plot(15*Main1/tmolength, title="TMO 1 Main", color=color1, editable = false)
+signalLine1 = plot(15*Signal1/tmolength, title="TMO 1 Signal", color=color1, editable = false)
+cloudcolor1 = ShowTMO1 and Main1 > Signal1 ? TMO1CloudUp : ShowTMO1 ? TMO1CloudDn : na
+fill(mainLine1, signalLine1, title="TMO 1 Fill", color=cloudcolor1, editable = false)
+
+// TMO 2 Plots
+
+color2 = ShowTMO2 and Main2 > Signal2 ? TMO2Bullish : ShowTMO2 ? TMO2Bearish : na
+mainLine2 = plot(15*Main2/tmolength, title="TMO 2 Main", color=color2, editable = false)
+signalLine2 = plot(15*Signal2/tmolength, title="TMO 2 Signal", color=color2, editable = false)
+cloudcolor2 = ShowTMO2 and Main2 > Signal2 ? TMO2CloudUp : ShowTMO2 ? TMO2CloudDn : na
+fill(mainLine2, signalLine2, title="TMO 2 Fill", color=cloudcolor2, editable = false)
+
+// TMO 3 Plots
+
+color3 = ShowTMO3 and Main3 > Signal3 ? TMO3Bullish : ShowTMO3 ? TMO3Bearish : na
+mainLine3 = plot(15*Main3/tmolength, title="TMO 3 Main", color=color3, editable = false)
+signalLine3 = plot(15*Signal3/tmolength, title="TMO 3 Signal", color=color3, editable = false)
+cloudcolor3 = ShowTMO3 and Main3 > Signal3 ? TMO3CloudUp : ShowTMO3 ? TMO3CloudDn : na
+fill(mainLine3, signalLine3, title="TMO 3 Fill", color=cloudcolor3, editable = false)
+
+// Background & Colors
+
+upperlcolor = ShowUpperL ? UpperLineColor : na
+upper = hline(10, title="OB Line", color= upperlcolor, linestyle=hline.style_solid, editable = false)
+lowerlcolor = ShowLowerL ? LowerLineColor : na
+lower = hline(-10, title="OS Line", color= lowerlcolor, linestyle=hline.style_solid, editable = false)
+obcolor = ShowObLine ? ObLineColor : na
+ob = hline(math.round(15), title="OB Cutoff Line", color= obcolor, linestyle=hline.style_solid, editable = false)
+oscolor = ShowOsLine ? OsLineColor : na
+os = hline(-math.round(15), title="OS Cutoff Line", color= oscolor, linestyle=hline.style_solid, editable = false)
+zerol = ShowZeroLine ? ZeroLineColor : na
+zero = hline(0, title="Zero Line", color=zerol, linestyle=hline.style_solid, editable = false)
+fill(ob, upper, title="OB Fill", color= color.new(#ff0000, 75), editable = false)
+fill(os, lower, title="OS Fill", color= color.new(#27c22e, 75), editable = false)

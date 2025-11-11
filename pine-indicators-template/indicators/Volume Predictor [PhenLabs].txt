@@ -1,0 +1,506 @@
+// This work is licensed under a Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) https://creativecommons.org/licenses/by-nc-sa/4.0/
+// © PhenLabs
+
+//@version=6
+indicator('Volume Predictor [PhenLabs]', shorttitle = 'PhenLabs - VP', overlay = false)
+
+// ═════════════════════════════════════════════════════════════
+// ══════════════ ORGANIZED SETTINGS INTERFACE ═════════════════
+// ═════════════════════════════════════════════════════════════
+
+// General Settings Group
+var generalGroup = "🔍 General Settings"
+lookbackPeriod = input.int(20, title = 'History Lookback Period', 
+     tooltip = 'Number of bars to analyze for pattern matching', 
+     minval = 5, maxval = 100, group = generalGroup)
+volumeColorThreshold = 50
+// Prediction Method Settings Group
+var predGroup = "🧠 Prediction Method"
+predictionMethod = input.string('Lorentzian', title = 'Algorithm', 
+     options = ['Lorentzian', 'KNN Pattern', 'Ensemble', 'EMA', 'Linear Regression'],
+     tooltip = 'Method used for volume prediction', group = predGroup)
+patternLength = input.int(5, title = 'Pattern Length', 
+     tooltip = 'Number of bars in pattern for ML methods', 
+     minval = 3, maxval = 10, group = predGroup)
+neighborsCount = input.int(3, title = 'Neighbors Count', 
+     tooltip = 'K value for KNN/Lorentzian methods', 
+     minval = 1, maxval = 5, group = predGroup)
+predictionBars = input.int(5, title = 'Prediction Horizon', 
+     tooltip = 'Number of bars to predict ahead', 
+     minval = 1, maxval = 10, group = predGroup)
+
+// Visualization Settings Group
+var visualGroup = "📊 Display Settings"
+displayMode = input.string('Overlay', title = 'Display Mode', 
+     options = ['Overlay', 'Prediction Only'],
+     tooltip = 'How to display volume vs predictions', group = visualGroup)
+showPredictionDots = input.bool(false, title = 'Show Prediction Dots', 
+     tooltip = 'Show white dots on future predictions for clarity',
+     group = visualGroup)
+futureBarTransparency = input.int(70, title = 'Future Bar Transparency (%)', 
+     tooltip = 'Transparency of future prediction bars',
+     minval = 0, maxval = 90, step = 10, group = visualGroup)
+
+// Dashboard Settings Group
+var dashboardGroup = "📱 Dashboard Settings"
+showAccuracyMetrics = input.bool(true, title = 'Show Dashboard', 
+     tooltip = 'Display prediction accuracy in dashboard',
+     group = dashboardGroup)
+dashboardLocation = input.string('Bottom Right', title = 'Dashboard Location', 
+     options = ['Top Left', 'Top Right', 'Bottom Left', 'Bottom Right'],
+     tooltip = 'Where to place the predictions dashboard',
+     group = dashboardGroup)
+dashboardTextSize = input.string('Normal', title = 'Dashboard Text Size', 
+     options = ['Small', 'Normal', 'Large'],
+     tooltip = 'Size of text in the dashboard',
+     group = dashboardGroup)
+dashboardStyle = input.string('Solid', title = 'Dashboard Style', 
+     options = ['Solid', 'Transparent'],
+     tooltip = 'Visual style of the dashboard',
+     group = dashboardGroup)
+
+// ═════════════════════════════════════════════════════════════
+// ══════════════ VOLUME ANALYSIS FUNCTIONS ════════════════════
+// ═════════════════════════════════════════════════════════════
+
+// Find the most significant volume in the look-back period
+getMaxVolume(lookback) =>
+    float maxVol = 0.0
+    for i = 0 to lookback - 1 by 1
+        if volume[i] > maxVol
+            maxVol := volume[i]
+    maxVol
+
+// Get the most significant volume
+maxVolume = getMaxVolume(lookbackPeriod)
+
+// Normalize current volume as a percentage of max volume
+normalizedVolume = volume / maxVolume * 100
+
+// Store historical normalized volumes
+var normalizedVolumeHistory = array.new_float(lookbackPeriod, 0.0)
+array.shift(normalizedVolumeHistory)
+array.push(normalizedVolumeHistory, normalizedVolume)
+
+// ═════════════════════════════════════════════════════════════
+// ══════════════ PREDICTION ALGORITHM CORE ════════════════════
+// ═════════════════════════════════════════════════════════════
+
+// Lorentzian distance between two patterns
+lorentzianDistance(pattern1, pattern2, size) =>
+    float distance = 0.0
+    for i = 0 to size - 1 by 1
+        value1 = array.get(pattern1, i)
+        value2 = array.get(pattern2, i)
+        // Lorentzian distance: sum of log(1 + |x - y|)
+        distance := distance + math.log(1 + math.abs(value1 - value2))
+    distance
+
+// KNN Pattern Matching prediction
+knnPatternPredict(historyArray, patternSize, neighbors, forwardBars) =>
+    var predictions = array.new_float(forwardBars, 0.0)
+
+    // Current pattern
+    var currentPattern = array.new_float(patternSize, 0.0)
+    for i = 0 to patternSize - 1 by 1
+        array.set(currentPattern, i, array.get(historyArray, array.size(historyArray) - patternSize + i))
+
+    // Store distances to all possible historical patterns
+    var distances = array.new_float(0)
+    array.clear(distances)
+
+    // Find all valid patterns in history and calculate distances
+    for i = 0 to array.size(historyArray) - patternSize - forwardBars - 1 by 1
+        var pattern = array.new_float(patternSize, 0.0)
+        for j = 0 to patternSize - 1 by 1
+            array.set(pattern, j, array.get(historyArray, i + j))
+
+        distance = lorentzianDistance(currentPattern, pattern, patternSize)
+        array.push(distances, distance)
+
+    // Find k nearest neighbors
+    var nearestIndices = array.new_int(neighbors, 0)
+    var nearestDistances = array.new_float(neighbors, 1000000.0) // Initialize with large values
+
+    // Scan all distances and keep track of k smallest
+    for i = 0 to array.size(distances) - 1 by 1
+        float currentDist = array.get(distances, i)
+        int replaceIdx = -1
+        float maxDist = 0.0
+
+        // Check if current distance should replace any in our k nearest
+        for j = 0 to neighbors - 1 by 1
+            if currentDist < array.get(nearestDistances, j)
+                float distAtJ = array.get(nearestDistances, j)
+                if distAtJ > maxDist
+                    maxDist := distAtJ
+                    replaceIdx := j
+
+        // Replace the furthest of our k nearest if needed
+        if replaceIdx >= 0
+            array.set(nearestDistances, replaceIdx, currentDist)
+            array.set(nearestIndices, replaceIdx, i)
+
+    // Make predictions based on what happened after each nearest neighbor pattern
+    for predIdx = 0 to forwardBars - 1 by 1
+        float predSum = 0.0
+        float weightSum = 0.0
+
+        for i = 0 to neighbors - 1 by 1
+            int patternStartIdx = array.get(nearestIndices, i)
+            float distance = array.get(nearestDistances, i)
+            float weight = 1.0 / (1.0 + distance) // Inverse distance weighting
+
+            // Get the actual value that occurred after this pattern
+            float futureValue = array.get(historyArray, patternStartIdx + patternSize + predIdx)
+            predSum := predSum + futureValue * weight
+            weightSum := weightSum + weight
+
+        // Weighted average prediction
+        float prediction = weightSum > 0 ? predSum / weightSum : 50.0 // Default to 50% if no weights
+        array.set(predictions, predIdx, prediction)
+
+    predictions
+
+// Ensemble prediction combining multiple methods
+ensemblePredict(historyArray, patternSize, neighbors, forwardBars) =>
+    // Get predictions from multiple models
+    var knnPredictions = knnPatternPredict(historyArray, patternSize, neighbors, forwardBars)
+
+    // Simple linear regression
+    float sumX = 0.0
+    sumY = 0.0
+    sumXY = 0.0
+    sumX2 = 0.0
+    int n = math.min(10, array.size(historyArray))
+
+    for i = 0 to n - 1 by 1
+        int idx = array.size(historyArray) - n + i
+        float x = i
+        float y = array.get(historyArray, idx)
+        sumX := sumX + x
+        sumY := sumY + y
+        sumXY := sumXY + x * y
+        sumX2 := sumX2 + x * x
+
+    float avgX = sumX / n
+    float avgY = sumY / n
+    float slope = (sumXY - n * avgX * avgY) / (sumX2 - n * avgX * avgX)
+    float intercept = avgY - slope * avgX
+
+    var lrPredictions = array.new_float(forwardBars, 0.0)
+    for i = 0 to forwardBars - 1 by 1
+        float prediction = intercept + slope * (n + i)
+        prediction := math.max(0, math.min(100, prediction))
+        array.set(lrPredictions, i, prediction)
+
+    // EMA prediction
+    float alpha = 2 / 6 // EMA alpha for 5 periods
+    float lastValue = array.get(historyArray, array.size(historyArray) - 1)
+    float prevEma = lastValue
+
+    var emaPredictions = array.new_float(forwardBars, 0.0)
+    for i = 0 to forwardBars - 1 by 1
+        if i == 0
+            array.set(emaPredictions, i, prevEma)
+        else
+            float nextEma = prevEma * alpha + prevEma * (1 - alpha) // Exponential smoothing
+            array.set(emaPredictions, i, nextEma)
+            prevEma := nextEma
+
+    // Final ensemble prediction (weighted average)
+    var ensemblePredictions = array.new_float(forwardBars, 0.0)
+    float knnWeight = 0.5 // Higher weight to KNN as it's more sophisticated
+    float lrWeight = 0.3 // Medium weight to linear regression
+    float emaWeight = 0.2 // Lower weight to EMA
+
+    for i = 0 to forwardBars - 1 by 1
+        float knnP = array.get(knnPredictions, i)
+        float lrP = array.get(lrPredictions, i)
+        float emaP = array.get(emaPredictions, i)
+
+        float weightedPrediction = knnP * knnWeight + lrP * lrWeight + emaP * emaWeight
+        array.set(ensemblePredictions, i, weightedPrediction)
+
+    ensemblePredictions
+
+// EMA based prediction
+emaPrediction(historyArray, forwardBars) =>
+    float alpha = 2 / 6
+    float lastValue = array.get(historyArray, array.size(historyArray) - 1)
+    float prevEma = lastValue
+    
+    var predictions = array.new_float(forwardBars, 0.0)
+    for i = 0 to forwardBars - 1 by 1
+        if i == 0
+            array.set(predictions, i, prevEma)
+        else
+            float nextEma = prevEma * alpha + prevEma * (1 - alpha)
+            array.set(predictions, i, nextEma)
+            prevEma := nextEma
+    
+    predictions
+
+// Linear regression prediction
+linearRegressionPredict(historyArray, forwardBars) =>
+    float sumX = 0.0
+    sumY = 0.0
+    sumXY = 0.0
+    sumX2 = 0.0
+    int n = math.min(10, array.size(historyArray))
+    
+    for i = 0 to n - 1 by 1
+        int idx = array.size(historyArray) - n + i
+        float x = i
+        float y = array.get(historyArray, idx)
+        sumX := sumX + x
+        sumY := sumY + y
+        sumXY := sumXY + x * y
+        sumX2 := sumX2 + x * x
+    
+    float avgX = sumX / n
+    float avgY = sumY / n
+    float slope = (sumXY - n * avgX * avgY) / (sumX2 - n * avgX * avgX)
+    float intercept = avgY - slope * avgX
+    
+    var predictions = array.new_float(forwardBars, 0.0)
+    for i = 0 to forwardBars - 1 by 1
+        float prediction = intercept + slope * (n + i)
+        prediction := math.max(0, math.min(100, prediction))
+        array.set(predictions, i, prediction)
+    
+    predictions
+
+// Choose prediction method based on user selection
+predictVolume(method, historyArray, patternSize, neighbors, forwardBars) =>
+    if method == 'Lorentzian'
+        knnPatternPredict(historyArray, patternSize, neighbors, forwardBars)
+    else if method == 'KNN Pattern'
+        knnPatternPredict(historyArray, patternSize, neighbors, forwardBars)
+    else if method == 'Ensemble'
+        ensemblePredict(historyArray, patternSize, neighbors, forwardBars)
+    else if method == 'EMA'
+        emaPrediction(historyArray, forwardBars)
+    else if method == 'Linear Regression'
+        linearRegressionPredict(historyArray, forwardBars)
+    else
+        var fallback = array.new_float(forwardBars, 50.0)
+        fallback // Default fallback
+
+// Generate predictions for the next bars
+predictedVolumes = predictVolume(predictionMethod, normalizedVolumeHistory, patternLength, neighborsCount, predictionBars)
+
+// Extract the first prediction for the current bar
+currentPrediction = array.get(predictedVolumes, 0)
+
+// ═════════════════════════════════════════════════════════════
+// ═════════════ PREDICTION ACCURACY TRACKING ═══════════════════
+// ═════════════════════════════════════════════════════════════
+
+// Store prediction history for plotting
+var predictionHistory = array.new_float(500, 0.0) // Maintain a history of predictions
+array.push(predictionHistory, currentPrediction)
+if array.size(predictionHistory) > 500
+    array.shift(predictionHistory)
+
+// Get last N predictions for comparison
+getPastPrediction(n) =>
+    size = array.size(predictionHistory)
+    n >= size ? 0.0 : array.get(predictionHistory, size - 1 - n)
+
+// Calculate accuracy metrics
+accuracyCalc() =>
+    float sumError = 0.0
+    float sumAbsError = 0.0
+    int count = 0
+
+    // Compare last 10 predictions with actual values
+    for i = 1 to 10 by 1
+        pred = getPastPrediction(i)
+        if pred > 0
+            actual = normalizedVolume[i - 1]
+            error = actual - pred
+            sumError := sumError + error
+            sumAbsError := sumAbsError + math.abs(error)
+            count := count + 1
+
+    float avgError = count > 0 ? sumError / count : 0.0
+    float avgAbsError = count > 0 ? sumAbsError / count : 0.0
+    float accuracy = count > 0 ? 100 - math.min(100, avgAbsError) : 0.0
+
+    [avgError, avgAbsError, accuracy]
+
+[avgError, avgAbsError, accuracy] = accuracyCalc()
+
+// ═════════════════════════════════════════════════════════════
+// ══════════════════ VISUALIZATION SETUP ══════════════════════
+// ═════════════════════════════════════════════════════════════
+
+// Colors
+actualVolColor = normalizedVolume >= volumeColorThreshold ? color.new(color.green, 0) : color.new(color.red, 0)
+predictionColor = color.new(color.blue, 60) // Semi-transparent blue for predictions
+futureBarColor = color.new(color.rgb(65, 105, 225), futureBarTransparency) // Royal blue with configurable transparency
+
+// Variables to hold what will be plotted
+var float plotActualVolume = na
+var float plotCurrentPrediction = na
+var float plotPredictionOnly = na
+
+// Individual variables for future predictions - needed to plot each with different offsets
+var float plotPrediction1 = na
+var float plotPrediction2 = na
+var float plotPrediction3 = na
+var float plotPrediction4 = na
+var float plotPrediction5 = na
+
+// Store dot values separately (can be hidden)
+var float dotPrediction1 = na
+var float dotPrediction2 = na
+var float dotPrediction3 = na
+var float dotPrediction4 = na
+var float dotPrediction5 = na
+
+// Set values based on display mode
+if displayMode == 'Overlay' or displayMode == 'Prediction Only'
+    // Only show actual volume in overlay mode
+    plotActualVolume := displayMode == 'Overlay' ? normalizedVolume : na
+    
+    // Show current prediction in both overlay and prediction only modes
+    plotCurrentPrediction := currentPrediction
+    
+    // Set values for future prediction bars
+    if displayMode == 'Extended Prediction' or displayMode == 'Overlay'
+        // Set future bar values if we're in extended prediction mode
+        plotPrediction1 := array.size(predictedVolumes) > 1 ? array.get(predictedVolumes, 1) : na
+        plotPrediction2 := array.size(predictedVolumes) > 2 ? array.get(predictedVolumes, 2) : na
+        plotPrediction3 := array.size(predictedVolumes) > 3 ? array.get(predictedVolumes, 3) : na
+        plotPrediction4 := array.size(predictedVolumes) > 4 ? array.get(predictedVolumes, 4) : na
+        plotPrediction5 := array.size(predictedVolumes) > 5 ? array.get(predictedVolumes, 5) : na
+    else
+        // Hide future bars in other modes
+        plotPrediction1 := na
+        plotPrediction2 := na
+        plotPrediction3 := na
+        plotPrediction4 := na
+        plotPrediction5 := na
+        
+    // Set values for prediction dots (can be hidden with showPredictionDots)
+    if showPredictionDots
+        dotPrediction1 := array.size(predictedVolumes) > 1 ? array.get(predictedVolumes, 1) : na
+        dotPrediction2 := array.size(predictedVolumes) > 2 ? array.get(predictedVolumes, 2) : na
+        dotPrediction3 := array.size(predictedVolumes) > 3 ? array.get(predictedVolumes, 3) : na
+        dotPrediction4 := array.size(predictedVolumes) > 4 ? array.get(predictedVolumes, 4) : na
+        dotPrediction5 := array.size(predictedVolumes) > 5 ? array.get(predictedVolumes, 5) : na
+    else
+        dotPrediction1 := na
+        dotPrediction2 := na
+        dotPrediction3 := na
+        dotPrediction4 := na
+        dotPrediction5 := na
+else
+    // Hide everything in other modes
+    plotActualVolume := na
+    plotCurrentPrediction := na
+    plotPrediction1 := na
+    plotPrediction2 := na
+    plotPrediction3 := na
+    plotPrediction4 := na
+    plotPrediction5 := na
+    dotPrediction1 := na
+    dotPrediction2 := na
+    dotPrediction3 := na
+    dotPrediction4 := na
+    dotPrediction5 := na
+
+// ═════════════════════════════════════════════════════════════
+// ═══════════════════ PLOTTING ELEMENTS ════════════════════════
+// ═════════════════════════════════════════════════════════════
+
+// Plot actual volume
+plot(plotActualVolume, title = 'Actual Volume', color = actualVolColor, style = plot.style_columns, linewidth = 2)
+
+// Current prediction bar
+plot(plotCurrentPrediction, title = 'Current Prediction', color = predictionColor, style = plot.style_columns, linewidth = 1)
+
+// Future prediction bars (with offsets)
+plot(plotPrediction1, title = 'Prediction Bar 1', color = futureBarColor, style = plot.style_columns, linewidth = 1, offset = 1)
+plot(plotPrediction2, title = 'Prediction Bar 2', color = futureBarColor, style = plot.style_columns, linewidth = 1, offset = 2)
+plot(plotPrediction3, title = 'Prediction Bar 3', color = futureBarColor, style = plot.style_columns, linewidth = 1, offset = 3)
+plot(plotPrediction4, title = 'Prediction Bar 4', color = futureBarColor, style = plot.style_columns, linewidth = 1, offset = 4)
+plot(plotPrediction5, title = 'Prediction Bar 5', color = futureBarColor, style = plot.style_columns, linewidth = 1, offset = 5)
+
+// Future prediction dots (for additional clarity)
+dotColor = color.new(color.white, 30)
+plot(dotPrediction1, title = 'Prediction Dot 1', color = dotColor, style = plot.style_circles, linewidth = 2, offset = 1)
+plot(dotPrediction2, title = 'Prediction Dot 2', color = dotColor, style = plot.style_circles, linewidth = 2, offset = 2)
+plot(dotPrediction3, title = 'Prediction Dot 3', color = dotColor, style = plot.style_circles, linewidth = 2, offset = 3)
+plot(dotPrediction4, title = 'Prediction Dot 4', color = dotColor, style = plot.style_circles, linewidth = 2, offset = 4)
+plot(dotPrediction5, title = 'Prediction Dot 5', color = dotColor, style = plot.style_circles, linewidth = 2, offset = 5)
+
+// Reference lines - always shown
+plot(100, title = 'Max Volume (100%)', color = color.gray, style = plot.style_line, linewidth = 1)
+
+// ═════════════════════════════════════════════════════════════
+// ═════════════════ DASHBOARD CONFIGURATION ══════════════════════
+// ═════════════════════════════════════════════════════════════
+
+// Convert dashboard location string to position enum
+dashboardPosition = switch dashboardLocation
+    'Top Left' => position.top_left
+    'Top Right' => position.top_right
+    'Bottom Left' => position.bottom_left
+    => position.bottom_right // Default
+
+// Convert text size string to size enum
+textSize = switch dashboardTextSize
+    'Small' => size.small
+    'Large' => size.large
+    => size.normal // Default
+
+// Dashboard background color based on style
+dashboardBgColor = dashboardStyle == 'Transparent' ? 
+     color.new(color.black, 80) : color.new(color.black, 0)
+
+// Dashboard border color
+dashboardBorderColor = dashboardStyle == 'Transparent' ? 
+     color.new(color.gray, 50) : color.gray
+
+// Create and populate the dashboard
+if showAccuracyMetrics and barstate.islast
+    // Create a new table with user-defined position and styling
+    var table accuracyTable = table.new(dashboardPosition, 2, 3, 
+         dashboardBgColor, color.white, 2, dashboardBorderColor, 1)
+
+    // Method icon based on prediction method
+    methodIcon = switch predictionMethod
+        'Lorentzian' => "🧠 𓄀 "
+        'KNN Pattern' => "🔍 𓄀 "
+        'Ensemble' => "🤖 𓄀 "
+        'EMA' => "📈 𓄀 "
+        'Linear Regression' => "📊 𓄀 "
+        => "🔮 𓄀 " // Default
+
+    // Clear existing content and update cells
+    table.clear(accuracyTable, 0, 0, 1, 2)
+    
+    // Add prediction method
+    table.cell(accuracyTable, 0, 0, methodIcon + " Method", 
+         text_color = color.white, bgcolor = color.rgb(25, 95, 185), 
+         text_size = textSize, text_font_family = font.family_monospace)
+    table.cell(accuracyTable, 1, 0, predictionMethod, 
+         text_color = color.white, bgcolor = color.rgb(25, 95, 185),
+         text_size = textSize, text_font_family = font.family_monospace)
+    
+    // Add average error
+    table.cell(accuracyTable, 0, 1, "📉 Avg Error", 
+         text_color = color.white, text_size = textSize, text_font_family = font.family_monospace)
+    table.cell(accuracyTable, 1, 1, str.tostring(math.round(avgError, 2)), 
+         text_color = avgError < 0 ? color.red : color.green, 
+         text_size = textSize, text_font_family = font.family_monospace)
+    
+    // Add accuracy
+    table.cell(accuracyTable, 0, 2, "🎯 Accuracy", 
+         text_color = color.white, text_size = textSize, text_font_family = font.family_monospace)
+    accuracyColor = accuracy > 70 ? color.green : accuracy > 50 ? color.orange : color.red
+    table.cell(accuracyTable, 1, 2, str.tostring(math.round(accuracy, 1)) + "%", 
+         text_color = accuracyColor, text_size = textSize, text_font_family = font.family_monospace)

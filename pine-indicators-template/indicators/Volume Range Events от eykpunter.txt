@@ -1,0 +1,51 @@
+//@version=3
+study("Volume Range Events", shorttitle = "vre")
+//A meningfull representation of volume expansions, range extansions and an emoline
+//Mood changes are seen in the price chart, emotions lead to moods, the trader uses these as early indicators of mood change.
+//Interpretation of this indicator requires some study, explanation in the script library.
+
+//tweek colors
+cocu = lime //color of climax up volume 
+cocd = red //color of climax down volume 
+cocc = aqua //color of climax churn volume 
+cosu = green //color of supportive volume 
+coch = blue //color of churn volume 
+
+//Function finding the usual value of a series with a pick and choose statistical procedure, inspects 8 periods but averages the 'middlest' 4.
+usual(src) =>                                            
+    pick = sum(src,3) -highest(src,3) -lowest(src,3)    //pick the middle
+    (sum(pick,6) -highest(pick,6) -lowest(pick,6))/4    //choose the mediocre out of the picks
+// end of function
+
+//finding higher volume events
+usuvol= usual(volume)
+relv= volume>usuvol? 100*(volume-usuvol)/volume :0     //only rises reported, 50 percent is twice as much!
+
+//finding range extensions
+truehigh = max(high, close[1])              //also used in emoline  
+truelow = min(low, close[1])                //also used in emoline
+range= truehigh -truelow
+usuran=usual(range)
+relr= range>usuran? 100*(range-usuran)/range :0  //just rises, calculated this way 50 percent is twice as much!
+
+//emoline, calculated as balance of power in true range
+trueopen = close[1]
+bop = 100*(close-trueopen)/(truehigh-truelow)   //true balance of power, using true range
+emoline = 1.5*linreg(bop, 30, 0)
+
+//plotting conditions
+emopos= emoline>0             //positive emotion in the market
+cup= close>trueopen or low>truelow          //candle up
+voltrue = relv>0
+exbuy = cup and relr>30 and relv>=40      //exhaustion buy, climax up, red in better volume system and here
+exsell = not cup and relr>30 and relv>=40  //exhaustion sell volume, climax down, white in better volume system and lime here
+suppor = relr>0 and voltrue and relv<40 //supportive volume, both up and down
+churn = voltrue and relr==0              //churn volume, both up and down.
+
+//plottings
+bgcolor(color= emopos?na :red)
+hline(0, linestyle=line, linewidth=1, color=orange)
+plot(cup?relv :-relv, title="volu expan", style=columns, color=exbuy? cocu :exsell?cocd :churn?coch :suppor?cosu: cocc) //volume expansion columns
+plot(cup?relr :-relr, title="range ext", style=histogram, linewidth=4, color=voltrue? gray :black) //range extension bars
+plot(cup?relr :-relr, title="range ext", style=histogram, linewidth=1, color=voltrue? maroon:black) //second plotting for brighter colors
+plot(emoline, title="emoline", linewidth=3, color=rising(emoline,2)?#90C0C0 :red, style=line)

@@ -1,0 +1,57 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © eykpunter, a variation on the script of RedKTrader
+
+//@version=4
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © RedKTrader
+
+//@version=4
+study("Trader Pressure Index (TPX)", shorttitle="TPX", overlay=false)  //name made shorter by Eykpunter
+
+// Inputs
+length   = input(title = "Look back # periods",   defval=15, minval=1) //Changed by Eykpunter
+smooth   = input(title = "Smoothing",    defval=3, minval=1)
+
+// ****    CLevel is the "critical or control" level, whoever builds pressure that exceeds that level will be in control
+clevel   = input(title = "Control Level",    defval=30, minval=5, maxval=100, step=5)
+
+//Calculations
+//R is the 2-bar range used as "baseline" or denominator 
+R        = highest(2) - lowest(2)
+
+// Bull pressure is represented by how far they can pull the high and the low of previous bar up relative to the 2-bar range
+hiup     = max(change(high),0)
+loup     = max(change(low),0)
+bulls    = (hiup + loup) / R * 100
+avgbulls = wma(bulls, length)-clevel    //changed by Eykpunter, clevel used to sink the whole graph below zero, thus putting histogram on a sensible place
+
+// Bear pressure is represented by how far they can push the high and the low of previous bar down relative to the 2-bar range
+hidn     = min(change(high),0)
+lodn     = min(change(low),0) 
+bears    = -1 * (hidn + lodn) / R * 100     //convert to positive value
+avgbears = wma(bears, length)-clevel        //changed by Eykpunter, see line 26
+
+net      = avgbulls - avgbears
+TPX      = wma(net, smooth)                // final smoothing
+minbube = min(avgbulls,avgbears)           // line added by Eykpunter to eneable coring of foreground
+
+//colors & plots
+col_bulls = color.rgb(33,255,00,80) //#33ff00                         
+col_bears = color.rgb(255,11,11,80) //#ff1111
+col_level = color.gray                       //Changed by Eykpunter
+col_TPXup = color.rgb(33,255,00,00)          //Changed by Eykpunter, bull bars of histogram (gras growing on bull hill)
+col_TPXdn = color.rgb(255,11,11,00)          //changed by Eykpunter, bear bars of histogram (blod dripping from bear hill)
+TPXBullish= TPX > 0
+
+hline( 0,  color = col_level, linestyle = hline.style_solid,   linewidth = 1, editable = false)
+hline(40,  color = col_level, linestyle = hline.style_dotted,  linewidth = 1, editable = false) //Added by Eykpunter
+hline(-40, color = col_level, linestyle = hline.style_dotted,  linewidth = 1, editable = false) //Added by Eykpunter
+zero=plot(-clevel, display=display.none) // title = "Control Level",    color = col_level, linewidth = 2) //Changed by Eykpunter, used as low border of foreground
+
+abu= plot(avgbulls, title = "Bull Pressure", color = color.teal, linewidth = 1)         //Color aand plot style changed by Eykpunter
+abe= plot(avgbears, title = "Bear Pressure", color = col_TPXdn,  linewidth = 1)          //Plot style changed by Eykpunter
+ami= plot(minbube, display=display.none)                                                    //line added by Eykpunter to eneable coloring of foreground
+fill(abu, abe,color=avgbulls>avgbears? col_bulls: col_bears, fillgaps=true)                                //color of bull aand bear hills added by Eykpunter
+fill(zero, ami, color.new(color.gray, 50), fillgaps=true)                                                  //color of foreground added by Eykpunter
+plot(TPX, title = "Net Pressure", color = TPXBullish? col_TPXup: col_TPXdn , style=plot.style_histogram, linewidth = 3) //changed by Eykpunter into histogram
+

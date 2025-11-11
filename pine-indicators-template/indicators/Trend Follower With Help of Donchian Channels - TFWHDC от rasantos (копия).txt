@@ -1,0 +1,38 @@
+//@version=3
+study("Trend Follower With Help of Donchian Channels - TFWHDC", overlay=true, precision=8)
+
+len = input(defval=21, title="Length", type=integer, minval=1) // Window of the last n bars
+sl = input(defval=true, title="Show Lines", type=bool) // Show Lines
+
+dcub = highest(high, len) // Donchian Channel Up Border
+dcdb = lowest(low, len) // Donchian Channel Down Border
+dcavg = (dcub + dcdb) / 2 // Donchian Channel Average Line
+
+plot(series=dcub, title="Donchian Channel Up Border", color=(sl ? #00aaff : na))
+plot(series=dcdb, title="Donchian Channel Down Border", color=(sl ? #00aaff : na))
+plot(series=dcavg, title="Donchian Channel Average Line", color=(sl ? #ff0000 : na))
+
+memresbrk = false // Resistance Breakout Memory
+memsupbrk = false // Support Breakout Memory
+arri = 0 // Arrow Indicator
+
+// Resistance Breakout Detection Block //
+if (high[0] >= dcub[1])
+    memresbrk := true
+    memsupbrk := false
+    arri := 1
+else
+    memresbrk := nz(memresbrk[1], false)
+////
+
+// Support Breakout Detection Block //
+if (low[0] <= dcdb[1])
+    memsupbrk := true
+    memresbrk := false
+    arri := -1
+else
+    memsupbrk := nz(memsupbrk[1], false)
+////
+
+barcolor(color=(memresbrk ? #00ff00 : memsupbrk ? #ff0000 : na))
+plotarrow(series=arri, colorup=#00ffcc, colordown=#ff00cc, offset=0, minheight=8, maxheight=32)

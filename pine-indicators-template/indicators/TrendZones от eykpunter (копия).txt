@@ -1,0 +1,156 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © eykpunter
+
+//@version=6
+indicator("TrendZones", overlay=true)
+
+//==========================================================================================================================================
+//input lookback periods and general settings
+lb = input.int(title = '#periods look back', defval = 30, minval = 14)
+
+med=5
+atrvalue=ta.sma(ta.atr(7),14)
+
+risktext="Risk tolerance percent (default is 20) calculates Safe Zone for opening position, used for Logical Stop Level feature"
+targptext="Target percent (default is 10) is calculated as High Border plus percent of High Border"
+targatext="Target is calculated as High Border plus amount ATR (default is 2)"
+logitext="Logical place for stops is Lower Curve, logical safe distance is less than accepatble risk (dark green), second best is at Center Curve (gray), third best is at Upper Curve (gray or navy),
+ last resort is ATR support (maroon)"
+safetext="If you open a position with a price below Safe Level, the suggested stop on the lower Curve will limit the risk to less than what is set as acceptable"
+volatext="Depict range between Price Level and Logical Stop Level and width between High Border and Low Border in below right corner of panel"
+atrtext="zone below Low Border with a width of 1 ATR, used for last resort stop level"
+
+rl = input.float(20, "risk tolerance percent",0, 100, 0.1, tooltip=risktext)
+tlp = input.float(10, "target percent", 0, 100, 0.1, tooltip=targptext)
+tla = input.float(2,"target atr",minval=0,maxval=4,step=0.1,tooltip=targatext)
+logiwish = input.bool(false, "show Logical Stop Level", tooltip=logitext)
+targpwish=input.bool(false, "show Targetline percent based", tooltip=targptext)
+targawish=input.bool(false, "show Targetline atr based", tooltip=targatext)
+atrwish=input.bool(false, "show atr Support zone", tooltip=atrtext)
+safewish=input.bool(false, "show Safe Level", tooltip=safetext)
+volawish=input.bool(false, "show stop distance risk and channel width", tooltip=volatext)
+showwish=input.bool(false, "show some general and user settings")
+
+//======================================================
+//clacultate lines
+sb=math.round(lb/2)
+supper=ta.highest(ta.median(high,med),sb)
+upper=ta.sma(supper,lb)
+slower=ta.lowest(ta.median(low,med),sb)
+lower=ta.sma(ta.lowest(ta.median(low,5),sb),lb)
+cog=(upper+lower)/2
+maxline=math.max(supper,upper)
+minline=math.min(slower,lower)
+
+//lines used for logical stops
+percval=rl*(lower/(100-rl))  //percent value for safe zone
+safe=lower+percval
+farup=upper+(upper-lower)    //level of very high points in trend (bubble?)
+
+//lines for additional features
+targetline1=maxline+tla*atrvalue //atr used
+targetline2=targetline1
+targetatr=maxline!=maxline[1]?targetline1:targetline2[1]
+
+targetline3=maxline+tlp*maxline/100 //percent used
+targetline4=targetline3
+targetperc=maxline!=maxline[1]?targetline3:targetline4[1]
+
+atrsupport=minline-atrvalue
+
+//===========================================================================
+//logic for logicstop
+stopsafe=close>cog and close<safe
+stopsell=close>farup and not stopsafe
+stopup=  close>upper and close<farup and not stopsafe
+stopcog= close>cog and close>safe and not stopsafe and not stopsell and not stopup
+stopset= close>=cog and not stopsafe and not stopsell and not stopup and not stopcog
+stopnone=close<=cog
+
+logicstop=stopsell or stopup?upper: stopcog?cog: stopset or stopsafe?lower: atrsupport
+
+
+//======================================================
+//calculate trend situation
+
+//color logic
+inblue=hl2>upper and low>cog
+ingreen=hl2>cog and low>cog and hl2< upper
+inred=hl2<lower and high<cog
+inorange=hl2<cog and high<cog and hl2>lower
+
+//find sideways situation
+
+int crossed=0                           //counter of COG crossings
+int oldcross=crossed[1]
+curvecross = high>upper or low<lower    //condition to reset crossed to zero
+cogcross=(high>cog and low<cog) or (low[1]>=cog and high<cog) or (high[1]<=cog and low>cog) //true crossing:  intracandle or with gap down or gap up
+crossed:=curvecross?0:cogcross?oldcross+1:oldcross      //counting until curvecross
+recross=crossed>1        //recross is one condition to call sideways
+
+upgreen=ingreen and not recross
+aroundcog=cogcross and not recross and not curvecross
+downorange=inorange and not recross
+sidegreen=ingreen and recross
+sidecog=cogcross and recross 
+sideorange=inorange and recross 
+
+//=======================================================================================================
+//plots and fills
+trencol=inred or downorange?color.red: sideorange or sidecog or sidegreen?color.new(#b3a988, 0): color.blue  //color.new(#b3a988, 0)
+pupp = plot(upper, "Upper Curve",trencol, 2, display=display.pane)
+pcog = plot(cog, "COG", trencol, 2)
+plow = plot(lower, "Lower Curve",#4a7225, 2)
+psup= plot(supper, "Resistance Level", display=display.none)
+pslo= plot(slower, "Support Level", display=display.none)
+pmax= plot(maxline, "high Border", color=maxline!=upper?color.purple:trencol)
+pmin= plot(minline, "low Border", color=minline!=lower?color.purple:#4a7225, display=display.pane)
+plot(targawish?targetatr:na,  "Target atr Level",color.navy)
+plot(targpwish?targetperc:na,  "Target % Level",color.black)
+psaf=plot(safewish?safe:na, "safe level",color.green)
+plot(logiwish?logicstop: na, "Logical Stop Level", stopsell?color.navy:stopsafe?#4a7522: stopnone?color.maroon:#adb0b8, 3, plot.style_circles,display=display.pane)
+patr=plot(atrwish?atrsupport:na, "ATR Support", color.new(color.olive,60))
+zonupcol=sideorange or sidecog or sidegreen? #b3a988:upgreen or aroundcog or inblue?#10c41673 :na
+fill(pupp,pcog, title="common uptrend",top_value=upper, top_color=zonupcol, bottom_value=cog, bottom_color=color.new(color.gray,90))
+zondowncol=sideorange or sidecog or sidegreen? #b3a988:downorange or inred?color.rgb(255, 143, 38, 50): na
+fill(plow,pcog, title="common downtrend",top_value=cog, top_color=color.new(color.gray,90), bottom_value=lower, bottom_color=zondowncol)
+fill(pmax,pupp, title= "strong uptrend", top_value=maxline, bottom_value= upper, top_color=#44a2f086, bottom_color=color.new(color.aqua,80))
+fill(pmin,plow, title= "strong downtrend", top_value=lower, bottom_value= minline, top_color=#ec280e2f, bottom_color=color.rgb(245, 65, 52, 44))
+fill(pmin,patr,color.new(color.olive,90),title="ATR support zone")
+fill(psaf,plow,color.new(color.yellow,80),"safe zone")
+
+//==============================================================================================================================================
+//report volatility
+
+//calculate width percents for report
+lowlevel=ta.sma(ta.sma(low,2),2)
+highlevel=ta.sma(ta.sma(high,2),2)
+closelevel=(lowlevel+highlevel)/2
+stop=math.round((closelevel-logicstop)/closelevel*100, 1)
+vola=math.round((maxline-minline)/maxline*100, 1)
+
+var table width = table.new(position = position.bottom_right, columns = 1, rows = 3)
+bgcol1=inred?color.new(color.red,60): stop>rl?color.new(color.fuchsia,80): color.new(color.green,70)
+bgcol2=upper-lower>safe?color.new(color.fuchsia,80): color.new(color.green,70)
+vol1text="The upper number depicts the distance between Price Level and nearest Logical Stop as percent of Price Level, 
+ background is green when this is within risk tolerance, when ouside fuchsia, red when in strong downtrend, number can be negative"
+vol2text="The lower number depicts channel width, i.e. the range between High Border and Low Border as percent of High Border, 
+ background is green when range between upper curve and lower curve is smaller than risk tolerance, otherwise (i.e. very volatile) fuchsia"
+stoptext= str.tostring(stop) + " %"
+pestext = str.tostring(vola) + ' %'
+if volawish == true
+    table.cell(width, row = 0, column = 0, text=stoptext, text_color = stopsafe?color.black:color.purple, bgcolor = bgcol1, text_size = size.normal, text_formatting=text.format_bold, tooltip=vol1text) 
+    table.cell(width, row = 1, column = 0, text=pestext, text_color = color.black, bgcolor = bgcol2, text_size = size.normal, text_formatting=text.format_bold, tooltip=vol2text) 
+    table.cell(width, row = 2, column = 0, text = '|', bgcolor = color.new(color.white, 100), text_color = color.new(color.white, 100), text_size = size.normal) //lower cell made invisible
+else if volawish == false
+    table.clear(width, 0, 0, 0, 0)
+
+//===============================================================================================================================================
+//show lookback
+var table feedback = table.new(position = position.bottom_left, columns = 1, rows = 2)
+lbtext = 'long ' + str.tostring(lb) + ' short ' + str.tostring(sb) + ' median ' + str.tostring(med) + " risk " +str.tostring(rl) + '% target-percent ' + str.tostring(tlp) + ' target-ATR ' + str.tostring(tla)
+if showwish == true
+    table.cell(feedback, row = 0, column = 0, text = lbtext, bgcolor = color.silver, text_size = size.normal)
+    table.cell(feedback, row = 1, column = 0, text = 'void', bgcolor = color.new(color.white, 100), text_color = color.new(color.white, 100), text_size = size.normal) //lower cell made invisible
+else if showwish == false
+    table.clear(feedback, 0, 0, 0, 0)

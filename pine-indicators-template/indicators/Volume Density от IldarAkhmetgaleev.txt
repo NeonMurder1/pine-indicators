@@ -1,0 +1,100 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © Ildar Akhmetgaleev (AkhIL)
+// vim: shiftwidth=2 tabstop=2
+
+//@version=4
+study(title="Volume Density", shorttitle="VolDen")
+
+avg_len = input(25, minval=5, title='Average lenght')
+avg_type = input("sma", options=["sma", "ema", "rma", "wma"], title="Average type")
+colourize_bars = input(true, title="Colourize bars")
+enable_histogram = input(true, title="Enable histogram")
+show_volume = input(false, title='Show volume')
+normalize = input(false, title='Normalize volume (if show volume is set)')
+log_scale = input(false, title='Log scale (if show volume is set)')
+clip_value = input(0.0, title='Clip value (0 to disable)', minval=0.0)
+
+xhigh_thresshold = input(150, title='Extreme Thresshold High') / 100
+high_thresshold = input(100, title='Thresshold Hight') / 100
+low_thresshold = input(75, title='Thresshold Low') / 100
+xlow_thresshold = input(50, title='Extreme Thresshold Low') / 100
+
+use_custom_volume_source = input(false, "Use custom volume source")
+volume_source_symbol = input("", "Custom volume source symbol", input.symbol)
+
+xhigh_color = #FF0000
+high_color = #FF9100
+norm_color = #888818
+low_color = #00DD23
+xlow_color = #0099FF
+
+custom_volume = use_custom_volume_source ? security(volume_source_symbol, timeframe.period, volume, lookahead=barmerge.lookahead_on) : volume
+
+range = max(log(high) - log(low), max(abs(log(high) - log(close[1])), abs(log(low) - log(close[1]))))
+
+ma(val, len) =>
+    if avg_type == "ema"
+        ema(val, len)
+    else if avg_type == "rma"
+        rma(val, len)
+    else if avg_type == "wma"
+        wma(val, len)
+    else
+        sma(val, len)
+
+avg_vol = ma(custom_volume, avg_len)
+avg_range = ma(range, avg_len)
+
+vol_density = (custom_volume / range) / (avg_vol / avg_range)
+
+xhigh_flag = vol_density > xhigh_thresshold
+high_flag = vol_density > high_thresshold
+low_flag = vol_density < low_thresshold
+xlow_flag = vol_density < xlow_thresshold
+column_color = xhigh_flag ? xhigh_color : high_flag ? high_color : xlow_flag ? xlow_color : low_flag ? low_color : norm_color 
+
+float value = na
+float avg_value = na
+color bar_color = na
+
+if enable_histogram
+    if show_volume
+        value := custom_volume
+        avg_value := avg_vol
+    
+        if normalize
+            value := value / avg_value
+            avg_value := 1
+        
+        if log_scale
+            value := log(value)
+            avg_value := log(avg_value)
+            if barstate.islast
+                value := max(-2.0, value)
+    
+    if not show_volume
+        value := vol_density * 100
+        avg_value := 0
+        if barstate.islast
+            value := min(value, high_thresshold * 100)
+
+if colourize_bars
+    bar_color := column_color
+
+if clip_value != 0.0
+    value := min(clip_value, max(-clip_value, value))
+
+plot(value, color=column_color, style=plot.style_columns, title="Value")
+plot(avg_value, color=color.aqua, title='Average')
+barcolor(bar_color)
+
+
+// plot(range, color=color.aqua)
+// plot(avg_range, color=color.aqua)
+
+// plot(custom_volume, color=color.red)
+// plot(avg_vol, color=color.red)
+
+// plot(vol_divergence, color=color.red)
+// plot(range_divergence, color=color.aqua)
+// plot(vol_divergence - range_divergence)

@@ -1,0 +1,44 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © QuantVue
+
+//@version=5
+indicator("Wedge Pop & Drop [QuantVue]", shorttitle = 'Wedge Pop & Drop [QuantVue]', overlay = true)
+
+//----------inputs----------//
+extLev = input.float(1.5, 'ATR Extension Multiplier')
+atrLen = input.int(10, 'ATR Length')
+
+//----------variables----------//
+ema10 = ta.ema(close,10)
+ema20 = ta.ema(close,20)
+atr = ta.atr(atrLen)
+extDn = high <= ema10 - atr*extLev
+extUp = low >= ema10 + atr*extLev
+var extDnBool = false
+var extUpBool = false
+
+//----------conditions and plots----------//
+if extDn 
+    extDnBool := true
+
+wpop = extDnBool and close > ema10 and close > ema20
+
+plotshape(extDn and not extDnBool[1], 'Extended Down', location =  location.belowbar, style = shape.circle)
+plotshape(wpop, 'Wedge Pop', location = location.belowbar, style = shape.labelup, text = 'WP', textcolor = color.white, color = color.green)
+
+if wpop
+    extDnBool := false
+
+if extUp 
+    extUpBool := true
+
+wdrop = extUpBool and close < ema10 and close < ema20
+
+plotshape(extUp and not extUpBool[1], 'Extended Up', location =  location.abovebar, style = shape.circle)
+plotshape(wdrop, 'Wedge Drop', location = location.abovebar, style = shape.labeldown, text = 'WD', textcolor = color.white, color = color.red)
+
+if wdrop
+    extUpBool := false
+
+plot(ema10, 'EMA 10', color = color.blue)
+plot(ema20, 'EMA 20',  color = color.green)

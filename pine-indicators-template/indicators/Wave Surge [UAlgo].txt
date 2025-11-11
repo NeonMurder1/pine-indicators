@@ -1,0 +1,83 @@
+// This Pine Script™ code is subject to the terms of the Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0) https://creativecommons.org/licenses/by-nc-sa/4.0/
+// © UAlgo
+//@version=6
+indicator(title='Wave Surge [UAlgo]', shorttitle='Wave Surge [UAlgo]', overlay=true)
+
+// Input Parameters
+var string GROUP_NAME = "Wave Surge Settings"
+wave_period = input(5, 'Wave Period', group=GROUP_NAME)
+baseline_length = input(14, 'Baseline Length', group=GROUP_NAME)
+baseline_type = input.string('ema', 'Baseline Type', options=['vwma', 'ema', 'sma', 'hma'], group=GROUP_NAME)
+source_type = input.string('hlc3', 'Source Type', options=['close', 'hlc3', 'hl2'], group=GROUP_NAME)
+
+// Threshold Settings
+use_adaptive_threshold = input.bool(true, 'Use Adaptive Threshold', group=GROUP_NAME)
+adaptive_period = input(500, 'Adaptive Period', group=GROUP_NAME)
+sensitivity = input.float(0.001, 'Sensitivity Factor', group=GROUP_NAME)
+
+// Volume Analysis
+use_volume_analysis = input.bool(true, 'Use Volume Analysis', group=GROUP_NAME)
+volume_scan_period = input.int(5, 'Volume Scan Period', group=GROUP_NAME)
+volume_factor = input.float(1.0, 'Volume Factor', group=GROUP_NAME)
+
+// Wave Calculations
+waveH = ta.ema(high, wave_period)
+waveL = ta.ema(low, wave_period)
+waveC = ta.ema(close, wave_period)
+priorWaveH = ta.valuewhen(true, waveH, 1)
+priorWaveL = ta.valuewhen(true, waveL, 1)
+priorWaveC = ta.valuewhen(true, waveC, 1)
+deltaH = high - priorWaveH
+deltaL = low - priorWaveL
+deltaC = close - priorWaveC
+
+// Volume Analysis Implementation
+volume_average = ta.sma(volume, volume_scan_period)
+volume_ratio = volume / ta.valuewhen(true, volume_average, 1)
+
+// Adaptive Threshold Implementation
+adaptive_level = use_adaptive_threshold ? ta.sma(hlc3, adaptive_period) * sensitivity : 0
+
+// Signal Generation
+threshold_prior = ta.valuewhen(true, adaptive_level, 1)
+high_signal = deltaH > threshold_prior ? 1 : 0
+low_signal = deltaL > threshold_prior ? 1 : 0
+close_signal = deltaC > threshold_prior ? 1 : 0
+
+wave_pattern = high_signal * 4 + low_signal * 2 + close_signal
+
+final_pattern = use_volume_analysis ? volume_ratio > volume_factor ? wave_pattern : 0 : wave_pattern
+
+// Baseline Calculation
+var float baseline = na
+
+if baseline_type == 'vwma'
+    baseline := ta.vwma(source_type == 'close' ? close : source_type == 'hlc3' ? hlc3 : hl2, baseline_length)
+else if baseline_type == 'ema'
+    baseline := ta.ema(source_type == 'close' ? close : source_type == 'hlc3' ? hlc3 : hl2, baseline_length)
+else if baseline_type == 'sma'
+    baseline := ta.sma(source_type == 'close' ? close : source_type == 'hlc3' ? hlc3 : hl2, baseline_length)
+else if baseline_type == 'hma'
+    baseline := ta.hma(source_type == 'close' ? close : source_type == 'hlc3' ? hlc3 : hl2, baseline_length)
+
+baseline_rising = baseline > baseline[1]
+baseline_falling = baseline < baseline[1]
+
+// Visual Signals
+plotshape(final_pattern == 1 and baseline_falling ? low : na, title='Wave1', style=shape.labelup, location=location.absolute, text='🡹', color=color(na), size=size.normal, textcolor=color.new(color.aqua, 10))
+plotshape(final_pattern == 3 and baseline_rising ? high : na, title='Wave3', style=shape.labeldown, location=location.absolute, text='🡻', color=color(na), size=size.normal, textcolor=color.new(color.red, 10))
+plotshape(final_pattern == 4 and baseline_rising ? high : na, title='Wave4', style=shape.labeldown, location=location.absolute, text='🡻', color=color(na), size=size.normal, textcolor=color.new(color.red, 10))
+plotshape(final_pattern == 5 and baseline_falling ? low : na, title='Wave5', style=shape.labelup, location=location.absolute, text='🡹', color=color(na), size=size.normal, textcolor=color.new(color.aqua, 10))
+plotshape(final_pattern == 6 and baseline_rising ? high : na, title='Wave6', style=shape.labeldown, location=location.absolute, text='🡻', color=color(na), size=size.normal, textcolor=color.new(color.red, 10))
+
+// Baseline Visualization
+baseline_plot = plot(baseline, color=baseline_rising ? color.aqua : color.red, title='Baseline', linewidth=2)
+price_plot = plot(hl2, display=display.none)
+fill(baseline_plot, price_plot, baseline_rising ? color.new(color.aqua, 85) : color.new(color.red, 85))
+
+// Alert Conditions
+alertcondition(final_pattern == 1 and baseline_falling, title="Bullish Wave 1", message="Bullish Wave 1 Signal Detected")
+alertcondition(final_pattern == 3 and baseline_rising, title="Bearish Wave 3", message="Bearish Wave 3 Signal Detected")
+alertcondition(final_pattern == 4 and baseline_rising, title="Bearish Wave 4", message="Bearish Wave 4 Signal Detected")
+alertcondition(final_pattern == 5 and baseline_falling, title="Bullish Wave 5", message="Bullish Wave 5 Signal Detected")
+alertcondition(final_pattern == 6 and baseline_rising, title="Bearish Wave 6", message="Bearish Wave 6 Signal Detected")

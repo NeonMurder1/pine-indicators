@@ -1,0 +1,113 @@
+//@version=6
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © eykpunter
+
+//@version=6
+indicator("TZanalyser", overlay=false)
+//"Trend Zone Monitor With Volume Focus And -Events Markers"
+
+//==========================================================================================================================================
+//input lookback periods and median periods
+
+lb = input.int(title = '#periods lookback', defval = 30, minval = 14)
+med=5
+
+//======================================================
+//clacultate lines
+sb=math.round(lb/2)
+supper=ta.highest(ta.median(high,med),sb)
+upper=ta.sma(supper,lb)
+slower=ta.lowest(ta.median(low,med),sb)
+lower=ta.sma(ta.lowest(ta.median(low,5),sb),lb)
+cog=(upper+lower)/2
+
+//=======================================================
+//calculate zone situation
+bzone= low>upper
+gzone= low<upper and low>cog
+ozone= high<cog and high>lower
+rzone= high<lower
+szone= not bzone and not gzone and not ozone and not rzone
+
+//============================================================================================================================================================
+//calculate and plot distance to cog as a percent
+situation= (hl2-cog)/(upper-lower)*100
+plot(situation,"trendzone", color=bzone? color.blue: gzone? color.green: ozone?color.orange: rzone?color.red: color.gray, style=plot.style_columns, display=display.pane)
+
+//===================================================================================================
+//calculate and plot volume focus
+vavg=ta.sma(volume,3)               //volume level
+vmax=ta.highest(vavg,30)            //used as 100 percent
+vlevmin=ta.lowest(vavg,30)          //used as level zero in percent calculation
+vmeds=ta.median(volume,5)           //new normal
+norvol=ta.median(volume[1],30)    //old normal
+vnormin=ta.lowest(vmeds,30)         //used as normal zero in percent calculation
+
+highfocus=vavg>norvol and vmeds>norvol    //considarable volume rize
+lowfocus =vavg<norvol and vmeds<norvol   //considarble low volume
+normalfocus= not highfocus and not lowfocus
+occur=highfocus or lowfocus?1:0
+present=math.sum(occur,30)>4    //no occurrences means no relevant volume; this also excludes fake volume
+placehigh= situation<0
+placelow= situation >= 0
+dis=math.max(ta.highest(math.abs(situation),100),100)
+
+//colors and plots
+chigh=placelow?color.new(color.yellow,100): highfocus?color.maroon: lowfocus?color.new(color.gray,50): color.teal
+clow=placehigh?color.new(color.yellow,100): highfocus?color.maroon: lowfocus?color.new(color.gray,50): color.teal
+plot(present?dis: na, "volume focus placed high", chigh, linewidth=3, display=display.pane)
+plot(present?-dis:na, "volume focus placed low", clow, linewidth=3, display=display.pane)
+
+//=========================================================================================================================
+//calculate volume cohorts
+
+pervol=present?volume/norvol*100:0 
+//pervol=volume/norvol*100
+modvol=pervol==0? 0: pervol<=80? 1: pervol<=120? 2: pervol<=200? 3: pervol>200? 4: 0  //assign Volume percents to cohorts
+//volume cohorts booleans
+v0=modvol==0     //no volume present
+v1=modvol==1     //low volume      0- 80 percent
+v2=modvol==2     //normal volume  80-120 percent
+v3=modvol==3     //high volume   120-200 percent
+v4=modvol==4     //extreme volume above 200 percent
+
+//=====================================================================================
+//calulate volume diraction and placement of triangles
+overup=placehigh and (v3 or v4) and situation>situation[1]
+overdn=placehigh and (v3 or v4) and situation<situation[1]
+underup=placelow and (v3 or v4) and situation>situation[1]
+underdn=placelow and (v3 or v4) and situation<situation[1]
+
+//======================================================================================================================================
+//assign colors according to volume cohorts
+cvol=v3?color.new(color.teal,10): v4?color.new(color.maroon,00): na
+
+//==================================================================
+//place volume triangles ie labels
+var label lbupo = na
+var label lbdno = na
+var label lbupu = na
+var label lbdnu = na
+//lbupo:=overup?label.new(bar_index, 60, color=cvol, style=label.style_triangleup, size=size.auto):na
+lbupo:=overup?label.new(bar_index, 0.3*dis, color=cvol, style=label.style_triangleup, size=size.auto):na
+lbdno:=overdn?label.new(bar_index, 0.7*dis, color=cvol, style=label.style_triangledown, size=size.auto):na
+//lbupu:=underup?label.new(bar_index, -60,color=cvol, style=label.style_triangleup, size=size.auto):na
+lbupu:=underup?label.new(bar_index, -0.7*dis,color=cvol, style=label.style_triangleup, size=size.auto):na
+lbdnu:=underdn?label.new(bar_index, -0.3*dis,color=cvol, style=label.style_triangledown, size=size.auto):na
+
+//============================================================
+//calculate report value, cut at 20
+rep= math.min(math.round(ta.sma(situation,5)/10),20)
+report=math.max(rep,-20)
+
+//create reporting table cell
+textcol=hl2<cog?color.maroon: color.black
+bgcol=szone?color.new(color.gray,60): bzone?color.new(color.blue,60):
+ gzone?color.new(color.green,60): rzone?color.new(color.red,60): color.new(color.orange,60)
+
+//table
+var table value = table.new(position=position.middle_right, columns=1, rows=1)
+table.cell(value, row=0, column=0, text=str.tostring(report), text_size=size.auto, text_color=textcol, text_formatting=text.format_bold, bgcolor=bgcol)
+
+
+

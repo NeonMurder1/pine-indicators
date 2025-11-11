@@ -1,0 +1,51 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © ajithcpas
+//
+// This indicator shows the daily expected trading range of the instrument.
+// The vix top and bottom denotes the range. It is calculated based on the
+// volatility index selected (NSE:India VIX is used by default).
+// Also it shows vix center, developing vix top, center and bottom for the next trading day.
+//
+// Non-directional option strategies (like straddle, strangle) can be performed
+// based on the expected trading range. 
+
+
+//@version=5
+indicator("VIX Range", overlay=true)
+
+volSymbol = input.symbol("NSE:INDIAVIX", "Volatility Index")
+timeFrame = input.string(title="Timeframe", defval="Auto", options=["Auto", "Daily", "Weekly", "Monthly"]) 
+
+getResolution() =>
+    resolution = "M"
+    if timeFrame == "Auto"
+        if timeframe.isintraday
+            resolution := "D"
+    else if timeFrame == "Daily"
+        resolution := "W"
+    else if timeFrame == "Weekly"
+        resolution := "M"
+    else if timeFrame == "Monthly"
+        resolution := "12M"
+    resolution
+
+calculateRange(dClose, dVixClose) =>
+	dailyRange = (dClose * dVixClose / 16 / 100)
+	vixTop = dClose + dailyRange
+	vixBottom = dClose - dailyRange
+	vixCenter = (vixTop + vixBottom) / 2
+	[vixTop, vixCenter, vixBottom]
+
+resolution = getResolution()
+symbolDailyClose = request.security(syminfo.tickerid, resolution, close)
+vixDailyClose = request.security(volSymbol, resolution, close)
+vixClose = request.security(volSymbol, timeframe.period, close)
+
+[vixTop, vixCenter, vixBottom] = calculateRange(symbolDailyClose[1], vixDailyClose[1])
+plot(vixTop, title="Vix Top")
+plot(vixCenter, title="Vix Center")
+plot(vixBottom, title="Vix Bottom")
+
+[devVixTop, devVixCenter, devVixBottom] = calculateRange(close, vixClose)
+plot(devVixTop, title="Developing Vix Top", color=color.new(color.green, 20))
+plot(devVixBottom, title="Developing Vix Bottom", color=color.new(color.red, 20))

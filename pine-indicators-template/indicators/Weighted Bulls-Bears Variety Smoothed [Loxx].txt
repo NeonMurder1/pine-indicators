@@ -1,0 +1,76 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © loxx
+
+//@version=5
+indicator("Weighted Bulls-Bears Variety Smoothed [Loxx]",
+     overlay = false, 
+     timeframe="", 
+     timeframe_gaps = true)
+
+color greencolor = #2DD204
+color redcolor = #D2042D 
+
+fema(float src, simple int len)=>
+    alpha = (2.0 / (2.0 + (len - 1.0) / 2.0))
+    out = 0.
+    out := nz(out[1]) + alpha * (src - nz(out[1])) 
+    out
+
+variant(simple string typein, src, per)=>
+    out = 0.
+    if typein == "Exponential Moving Average - EMA"
+        out := ta.ema(src, per)
+    if typein == "Fast Exponential Moving Average - FEMA"
+        out := fema(src, per)
+    if typein ==  "Linear Weighted Moving Average - LWMA"
+        out := ta.wma(src, per)
+    if typein ==  "Simple Moving Average - SMA"
+        out := ta.sma(src, per)
+    if typein ==  "Smoothed Moving Average - SMMA"
+        out := ta.rma(src, per)
+    out
+
+weight(fng, dist)=>
+    (fng + fng / dist)
+
+float CalcPrice    = input.source(close, "Source", group = "Basic Settings")
+int CalcPeriod   = input.int(50, "Period", group = "Basic Settings")       
+int CalcMaPeriod = input.int(1, "Smooting Period", group = "Basic Settings")   
+string matype =  input.string("Simple Moving Average - SMA", "Smoothing Type",
+     options = ["Exponential Moving Average - EMA", 
+     "Fast Exponential Moving Average - FEMA", 
+     "Linear Weighted Moving Average - LWMA", 
+     "Simple Moving Average - SMA", "Smoothed Moving Average - SMMA"], 
+     group = "Basic Settings")
+
+bool colorbars = input.bool(true, "Color bars", group= "UI Options")
+bool showSigs = input.bool(true, "Show signals", group= "UI Options")
+
+float prices = variant(matype, CalcPrice, CalcMaPeriod)
+int hbar = ta.highestbars(prices, CalcPeriod)
+float hval = nz(CalcPrice[math.abs(hbar)])
+int lbar = ta.lowestbars(prices, CalcPeriod)
+float lval = nz(CalcPrice[math.abs(lbar)])
+
+float bear = -weight(hval - prices, hbar + 1)
+float bull = +weight(prices - lval, lbar + 1)
+
+float temp = bull * 2 + bear * 2
+float buffer5 = temp ? temp : nz(temp[1])
+
+color colorout = buffer5 > 0 ? greencolor : redcolor
+
+plot(buffer5, "Weighted Bulls-Bbears Variety Smoothed", color = colorout, style = plot.style_columns, linewidth = 2)
+
+barcolor(colorbars ? colorout : na)
+
+float middle = 0.0
+
+bool goLong = ta.crossover(buffer5, middle)
+bool goShort = ta.crossunder(buffer5, middle)
+
+plotshape(showSigs and goLong, title = "Long", color = color.yellow, textcolor = color.yellow, text = "L", style = shape.triangleup, location = location.bottom)
+plotshape(showSigs and goShort, title = "Short", color = color.fuchsia, textcolor = color.fuchsia, text = "S", style = shape.triangledown, location = location.top)
+
+alertcondition(goLong, title = "Long", message = "Weighted Bulls-Bears Variety Smoothed [Loxx]: Long\nSymbol: {{ticker}}\nPrice: {{close}}")
+alertcondition(goShort, title = "Short", message = "Weighted Bulls-Bears Variety Smoothed [Loxx]: Short\nSymbol: {{ticker}}\nPrice: {{close}}")
